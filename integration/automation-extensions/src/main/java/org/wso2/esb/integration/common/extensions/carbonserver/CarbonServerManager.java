@@ -111,7 +111,7 @@ public class CarbonServerManager {
                     commandDir = new File(carbonHome + File.separator + "bin");
                     cmdArray = new String[] { "cmd.exe", "/c", commandDir + File.separator + scriptName + ".bat" };
                 }
-
+                Runtime.getRuntime().exec("java -Xshare:dump");
                 cmdArray = mergePropertiesToCommandArray(parameters, cmdArray);
                 process = Runtime.getRuntime().exec(cmdArray, null, commandDir);
 
