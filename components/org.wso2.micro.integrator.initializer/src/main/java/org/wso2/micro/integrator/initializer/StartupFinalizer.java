@@ -27,6 +27,8 @@ import org.apache.commons.logging.LogFactory;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.wso2.micro.core.ServerStatus;
+import org.wso2.micro.core.util.ServerException;
+import org.wso2.micro.integrator.initializer.jmx.JMXServerManager;
 import org.wso2.micro.integrator.initializer.utils.ConfigurationHolder;
 
 /**
@@ -75,7 +77,7 @@ public class StartupFinalizer {
         }
         listenerManager.setShutdownHookRequired(false);
 
-        // Init and start axis2 transports
+        // Init and start axis2 tranasports
         listenerManager.startSystem(configCtx);
 
         /*listerManagerServiceRegistration =
@@ -83,6 +85,11 @@ public class StartupFinalizer {
 
         setServerStartTimeParam();
         printInfo();
+        try {
+            new JMXServerManager().startJMXService();
+        } catch (ServerException e) {
+            log.error("Cannot start JMX service", e);
+        }
     }
     
     private void setServerStartTimeParam() {

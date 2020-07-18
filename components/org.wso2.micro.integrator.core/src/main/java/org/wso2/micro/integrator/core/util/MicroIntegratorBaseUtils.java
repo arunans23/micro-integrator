@@ -111,6 +111,10 @@ public class MicroIntegratorBaseUtils {
         return carbonConfigDirPath;
     }
 
+    public static String getEtcCarbonConfigDirPath() {
+        return getCarbonConfigDirPath() + File.separator + "etc";
+    }
+
     public static String getCarbonHome() {
 
         String carbonHome = System.getProperty(MicroIntegratorBaseConstants.CARBON_HOME);
