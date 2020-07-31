@@ -88,6 +88,7 @@ public class ManagementInternalApi implements InternalAPI {
         resourcesList.add(new LogFilesResource(PREFIX_LOG_FILES));
         resourcesList.add(new ApiResourceAdapter(PREFIX_TRANSACTION + PATH_PARAM_TRANSACTION,
                                                  new RequestCountResource()));
+        resourcesList.add(new ApiResourceAdapter("/upload", new RemoteCAppUploaderResource()));
 
         resources = new APIResource[resourcesList.size()];
         resources = resourcesList.toArray(resources);
