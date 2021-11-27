@@ -34,10 +34,12 @@ import org.wso2.carbon.securevault.SecretCallbackHandlerService;
 import org.wso2.config.mapper.ConfigParser;
 import org.wso2.micro.application.deployer.AppDeployerUtils;
 import org.wso2.micro.application.deployer.CarbonApplication;
+import org.wso2.micro.core.CarbonAxisConfigurator;
 import org.wso2.micro.core.util.CarbonException;
 import org.wso2.micro.core.util.StringUtils;
 import org.wso2.micro.integrator.core.util.MicroIntegratorBaseUtils;
 import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDeployer;
+import org.wso2.micro.integrator.initializer.serviceCatalog.ServiceCatalogExecutor;
 import org.wso2.securevault.SecretResolver;
 import org.wso2.securevault.SecretResolverFactory;
 import org.wso2.securevault.commons.MiscellaneousUtil;
@@ -63,6 +65,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -394,6 +398,29 @@ public class ServiceCatalogUtils {
         if (!StringUtils.isEmpty(alias)) {
             password = secretResolver.resolve(alias);
         }
+
+        configMap.put(APIM_HOST, apimHost);
+        configMap.put(USER_NAME, userName);
+        configMap.put(PASSWORD, password);
+        return configMap;
+    }
+
+    /**
+     * Read APIM host configurations from deployment.toml file.
+     *
+     * @param secretCallbackHandlerService secret callback handler reference.
+     * @return map of resolved values.
+     */
+    public static Map<String, String> readConfiguration() {
+        Map<String, String> configMap = new HashMap<>();
+        Map<String, String> catalogProperties =
+                (Map<String, String>) ((ArrayList) ConfigParser.getParsedConfigs().get(
+                        SERVICE_CATALOG_CONFIG)).get(0);
+
+        String apimHost = catalogProperties.get(APIM_HOST);
+
+        String userName = catalogProperties.get(USER_NAME);
+        String password = catalogProperties.get(PASSWORD);
 
         configMap.put(APIM_HOST, apimHost);
         configMap.put(USER_NAME, userName);
@@ -866,5 +893,18 @@ public class ServiceCatalogUtils {
             log.error("Failed to fetch serviceUrl from the metadata YAML file or file does not exist");
         }
         return currentServiceUrl;
+    }
+
+    public static boolean isServiceCatalogEnabled() {
+        Map<String, Object> catalogProperties;
+        if (ConfigParser.getParsedConfigs().get(SERVICE_CATALOG_CONFIG) != null) {
+            catalogProperties =
+                    (Map<String, Object>) ((ArrayList) ConfigParser.getParsedConfigs().get(
+                            SERVICE_CATALOG_CONFIG)).get(0);
+            if ((boolean) catalogProperties.get(ENABLE)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

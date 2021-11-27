@@ -211,19 +211,19 @@ public class AppDeployerServiceComponent {
         AxisConfigurator axisConfigurator = configCtx.getAxisConfiguration().getConfigurator();
         if (axisConfigurator instanceof CarbonAxisConfigurator) {
             ((CarbonAxisConfigurator) axisConfigurator).deployServices();
-            Map<String, Object> catalogProperties;
-            if (ConfigParser.getParsedConfigs().get(SERVICE_CATALOG_CONFIG) != null) {
-                catalogProperties =
-                        (Map<String, Object>) ((ArrayList) ConfigParser.getParsedConfigs().get(
-                                SERVICE_CATALOG_CONFIG)).get(0);
-                if ((boolean) catalogProperties.get(ENABLE)) {
-                    String repoLocation = ((CarbonAxisConfigurator) axisConfigurator).getRepoLocation();
-                    ExecutorService executorService = Executors.newSingleThreadExecutor();
-                    executorService.submit(new ServiceCatalogExecutor(repoLocation, secretCallbackHandlerService));
-                    // we are not interested in the result of this thread execution
-                    executorService.shutdown();
-                }
-            }
+//            Map<String, Object> catalogProperties;
+//            if (ConfigParser.getParsedConfigs().get(SERVICE_CATALOG_CONFIG) != null) {
+//                catalogProperties =
+//                        (Map<String, Object>) ((ArrayList) ConfigParser.getParsedConfigs().get(
+//                                SERVICE_CATALOG_CONFIG)).get(0);
+//                if ((boolean) catalogProperties.get(ENABLE)) {
+//                    String repoLocation = ((CarbonAxisConfigurator) axisConfigurator).getRepoLocation();
+//                    ExecutorService executorService = Executors.newSingleThreadExecutor();
+//                    executorService.submit(new ServiceCatalogExecutor(repoLocation, secretCallbackHandlerService));
+//                    // we are not interested in the result of this thread execution
+//                    executorService.shutdown();
+//                }
+//            }
         }
     }
 
