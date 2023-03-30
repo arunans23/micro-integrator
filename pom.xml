@@ -23,6 +23,10 @@
         <artifactId>wso2</artifactId>
         <version>1.3</version>
     </parent>
+    <modules>
+        <module>components/org.wso2.micro.integrator.extensions/org.wso2.micro.integrator.grpc.client</module>
+        <module>components/org.wso2.micro.integrator.extensions/org.wso2.micro.integrator.grpc.proto</module>
+    </modules>
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.wso2.ei</groupId>

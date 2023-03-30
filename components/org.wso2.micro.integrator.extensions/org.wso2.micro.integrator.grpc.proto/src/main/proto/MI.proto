@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.grpc.mi.service";
+option java_outer_classname = "MIProto";
+
+package com.grpc.service;
+
+
+service MIService {
+  rpc dataExchange(stream DataRequest) returns (stream DataResponse){};
+}
+
+message DataResponse {
+  enum ResponseType{
+    SERVER = 0;
+    APILIST = 1;
+    API = 2;
+    ENDPOINTLIST = 3;
+    ENDPOINT = 4;
+  }
+  ResponseType responseType = 1;
+  string response = 2;
+}
+
+message DataRequest {
+  oneof requests{
+    Handshake handshake = 1;
+    ServerInfo serverInfo = 2;
+    APIList apiList= 3;
+    API api = 4;
+    EndpointList endpointList = 5;
+    Endpoint endpoint = 6;
+  }
+}
+
+message Handshake{
+  string groupID = 1;
+  string nodeID = 2;
+}
+
+message APIList{
+  int32 count = 1;
+  repeated APISummary apiSummaries = 2;
+}
+
+message APISummary{
+  string tracing = 1;
+  string name = 2;
+  string url = 3;
+}
+
+message API{
+  string tracing = 1;
+  string stats = 2;
+  int32 port = 3;
+  string configuration = 4;
+  string name = 5;
+  string context = 6;
+  repeated Resource resources = 7;
+  string version = 8;
+  string url = 9;
+}
+
+message Resource{
+  repeated string methods = 1;
+  string url = 2;
+}
+
+message ServerInfo{
+  string productVersion = 1;
+  string osVersion = 2;
+  string javaVersion = 3;
+  string carbonHome = 4;
+  string javaVendor = 5;
+  string osName = 6;
+  string productName = 7;
+  string javaHome = 8;
+}
+
+message EndpointList{
+  int32 count = 1;
+  repeated EndpointSummary endPointSummaries = 2;
+}
+
+message EndpointSummary{
+  string name = 1;
+  string type = 2;
+  bool  isActive = 3;
+}
+
+message Endpoint{
+  string tracing = 1;
+  string method = 2;
+  string advanced = 3; //
+  string timeoutState = 4; //
+  string configuration = 5;
+  string uriTemplate = 6;
+  string name = 7;
+  string type = 8;
+  bool isActive = 9;
+}
