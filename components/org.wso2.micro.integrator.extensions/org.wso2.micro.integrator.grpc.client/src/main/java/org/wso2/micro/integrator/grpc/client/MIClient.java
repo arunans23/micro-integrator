@@ -1,11 +1,8 @@
-package com.grpc.mi.client;
+package org.wso2.micro.integrator.grpc.client;
 
-import com.grpc.mi.service.*;
-import com.grpc.mi.service.API;
-import com.grpc.mi.service.APIList;
-import com.grpc.mi.service.ServerInfo;
 import io.grpc.*;
 import io.grpc.stub.StreamObserver;
+import org.wso2.micro.integrator.grpc.proto.*;
 import java.util.concurrent.TimeUnit;
 
 public class MIClient {
@@ -70,17 +67,32 @@ public class MIClient {
             .setOsName("Windows 10")
             .setProductName("WSO2 Micro Integrator")
             .setJavaHome("C:\\Program Files\\OpenJDK\\jdk-11.0.18.10-hotspot").build();
-    public MIClient(Channel channel){
-        stub = MIServiceGrpc.newStub(channel);
+    public MIClient() {
+        initializeGrpcClient();
     }
-    public static void main(String[] args) throws InterruptedException {
+
+    public void initializeGrpcClient(){
+        System.out.println("Initializing gRPC client");
+
+        Runnable task = () -> {
+            try {
+                System.out.println("Starting gRPC client");
+                startGrpcClient();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        };
+        Thread thread = new Thread(task);
+        thread.start();
+    }
+    private void startGrpcClient() throws InterruptedException {
         ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 8080).usePlaintext().build();
-        MIClient client = new MIClient(channel);
-        client.dataExchange();
+        stub = MIServiceGrpc.newStub(channel);
+        dataExchange();
     }
 
     public void dataExchange() throws InterruptedException {
-        StreamObserver<DataResponse> responseObserver = new StreamObserver<>() {
+        StreamObserver<DataResponse> responseObserver = new StreamObserver<DataResponse>() {
             @Override
             public void onNext(DataResponse dataResponse) {
                 int responseType = dataResponse.getResponseType().getNumber();
