@@ -1,10 +1,10 @@
 syntax = "proto3";
 
 option java_multiple_files = true;
-option java_package = "com.grpc.mi.service";
+option java_package = "org.wso2.micro.integrator.grpc.proto";
 option java_outer_classname = "MIProto";
 
-package com.grpc.service;
+package org.wso2.micro.integrator.grpc.proto;
 
 
 service MIService {
