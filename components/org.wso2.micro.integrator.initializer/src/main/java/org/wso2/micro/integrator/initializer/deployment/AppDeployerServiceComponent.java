@@ -34,6 +34,7 @@ import org.wso2.micro.application.deployer.handler.DefaultAppDeployer;
 import org.wso2.micro.core.CarbonAxisConfigurator;
 import org.wso2.micro.integrator.core.UserStoreTemporaryService;
 import org.wso2.micro.integrator.dataservices.core.DBDeployer;
+import org.wso2.micro.integrator.grpc.client.MIClient;
 import org.wso2.micro.integrator.initializer.StartupFinalizer;
 import org.wso2.micro.integrator.initializer.dashboard.HeartBeatComponent;
 import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDeployer;
@@ -56,7 +57,7 @@ public class AppDeployerServiceComponent {
     private StartupFinalizer startupFinalizer;
 
     @Activate
-    protected void activate(ComponentContext ctxt) {
+    protected void activate(ComponentContext ctxt) throws InterruptedException {
 
         if (log.isDebugEnabled()) {
             log.debug(
@@ -77,6 +78,9 @@ public class AppDeployerServiceComponent {
             log.info("Dashboard is configured. Initiating heartbeat component.");
             HeartBeatComponent.invokeHeartbeatExecutorService();
         }
+
+        // Initialize the deployment of grpc MI client
+        MIClient miclient = new MIClient();
 
         // Finalize server startup
         startupFinalizer = new StartupFinalizer(configCtx, ctxt.getBundleContext());

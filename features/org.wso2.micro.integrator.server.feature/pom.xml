@@ -255,6 +255,10 @@
                                 </bundleDef>
 <!--                                <bundleDef>org.wso2.carbon:org.wso2.carbon.addressing:${carbon.kernel.version}-->
 <!--                                </bundleDef>-->
+                                <!-- gRPC client -->
+                                <bundleDef>
+                                    org.wso2.ei:org.wso2.micro.integrator.grpc.client:${project.version}
+                                </bundleDef>
                                 <!--Management API-->
                                 <bundleDef>
                                     org.wso2.ei:org.wso2.micro.integrator.management.apis:${project.version}
