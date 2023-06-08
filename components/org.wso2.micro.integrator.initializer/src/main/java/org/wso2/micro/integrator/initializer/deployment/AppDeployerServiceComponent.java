@@ -34,7 +34,6 @@ import org.wso2.micro.application.deployer.handler.DefaultAppDeployer;
 import org.wso2.micro.core.CarbonAxisConfigurator;
 import org.wso2.micro.integrator.core.UserStoreTemporaryService;
 import org.wso2.micro.integrator.dataservices.core.DBDeployer;
-import org.wso2.micro.integrator.grpc.client.MIClient;
 import org.wso2.micro.integrator.initializer.StartupFinalizer;
 import org.wso2.micro.integrator.initializer.dashboard.HeartBeatComponent;
 import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDeployer;
@@ -79,8 +78,6 @@ public class AppDeployerServiceComponent {
             HeartBeatComponent.invokeHeartbeatExecutorService();
         }
 
-        // Initialize the deployment of grpc MI client
-        MIClient miclient = new MIClient();
 
         // Finalize server startup
         startupFinalizer = new StartupFinalizer(configCtx, ctxt.getBundleContext());

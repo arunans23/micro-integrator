@@ -256,6 +256,14 @@
 <!--                                <bundleDef>org.wso2.carbon:org.wso2.carbon.addressing:${carbon.kernel.version}-->
 <!--                                </bundleDef>-->
                                 <!-- gRPC client -->
+<!--                                <bundleDef>org.wso2.orbit.io.grpc:grpc-api:1.21.1.wso2v1</bundleDef>-->
+<!--                                <bundleDef>org.wso2.orbit.io.grpc:grpc-stub:1.27.2.wso2v1</bundleDef>-->
+                                <bundleDef>com.google.protobuf:protobuf-java:${protobuf.java.version}</bundleDef>
+<!--                                <bundleDef>com.google.protobuf.nano:protobuf-javanano:${protobuf.nano.java.version}</bundleDef>-->
+<!--                                <bundleDef>org.wso2.orbit.io.grpc:grpc-netty-shaded:1.55.1.wso2v1</bundleDef>-->
+                                <bundleDef>
+                                    org.wso2.ei:org.wso2.micro.integrator.grpc.proto:${project.version}
+                                </bundleDef>
                                 <bundleDef>
                                     org.wso2.ei:org.wso2.micro.integrator.grpc.client:${project.version}
                                 </bundleDef>
@@ -289,8 +297,8 @@
                                 <bundleDef>com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${fasterxml.jackson.version}</bundleDef>
                                 <bundleDef>org.wso2.orbit.org.apache.commons:commons-lang3:${commons-lang3.orbit.version}</bundleDef>
                                 <bundleDef>org.wso2.ei:javax.cache.wso2:${project.version}</bundleDef>
-                                <bundleDef>org.wso2.orbit.io.grpc:grpc-context:${grpc-context.orbit.version}</bundleDef>
-                                <bundleDef>org.wso2.orbit.io.opencensus:opencensus:${opencensus.orbit.version}</bundleDef>
+<!--                                <bundleDef>org.wso2.orbit.io.grpc:grpc-context:${grpc-context.orbit.version}</bundleDef>-->
+<!--                                <bundleDef>org.wso2.orbit.io.opencensus:opencensus:${opencensus.orbit.version}</bundleDef>-->
                             </bundles>
 
                             <importFeatures>

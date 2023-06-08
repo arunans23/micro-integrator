@@ -647,6 +647,13 @@
                 -->
                 <include>javax.xml.bind:jaxb-api:jar</include>
                 <include>io.netty:netty-tcnative-boringssl-static</include>
+                <include>io.grpc:grpc-context:jar</include>
+                <include>io.grpc:grpc-api:jar</include>
+                <include>io.grpc:grpc-netty-shaded:jar</include>
+                <include>io.grpc:grpc-stub:jar</include>
+                <include>io.grpc:grpc-core:jar</include>
+                <include>io.opencensus:opencensus-api:jar</include>
+                <include>io.opencensus:opencensus-contrib-http-util:jar</include>
             </includes>
         </dependencySet>
         <dependencySet>

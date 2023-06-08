@@ -709,6 +709,31 @@
                 <version>${version.woodstox.core.asl}</version>
             </dependency>
             <dependency>
+                <groupId>io.opencensus</groupId>
+                <artifactId>opencensus-api</artifactId>
+                <version>${opencensus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opencensus</groupId>
+                <artifactId>opencensus-contrib-http-util</artifactId>
+                <version>${opencensus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-api</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-context</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-core</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.wso2.carbon.identity.inbound.auth.oauth2</groupId>
                 <artifactId>org.wso2.carbon.identity.oauth.stub</artifactId>
                 <version>${carbon.identity.oauth.version}</version>
@@ -1826,7 +1851,8 @@
         <wrapper.version>3.2.3</wrapper.version>
         <nimbus-jose.orbit.version>9.22.0.wso2v1</nimbus-jose.orbit.version>
         <nimbus-jose.orbit.imp.pkg.version>[9.22,10.0)</nimbus-jose.orbit.imp.pkg.version>
-        <grpc.version>1.21.0</grpc.version>
+        <grpc.version>1.27.2</grpc.version>
+        <opencensus.version>0.30.0</opencensus.version>
         <axis2-java2wsdl.version>1.6.2</axis2-java2wsdl.version>
         <!-- Prometheus Library versions-->
         <prometheus.version>0.8.1</prometheus.version>
@@ -1850,6 +1876,8 @@
         <jsoup.version>1.15.3</jsoup.version>
         <grpc-context.orbit.version>1.27.2.wso2v1</grpc-context.orbit.version>
         <opencensus.orbit.version>0.30.0.wso2v1</opencensus.orbit.version>
+        <protobuf.java.version>3.23.2</protobuf.java.version>
+        <protobuf.nano.java.version>3.2.0rc2</protobuf.nano.java.version>
     </properties>
 
     <repositories>

@@ -40,9 +40,6 @@ import org.wso2.config.mapper.ConfigParser;
 import org.wso2.micro.core.util.StringUtils;
 
 import java.io.IOException;
-import java.security.KeyManagementException;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -98,8 +95,16 @@ public class HeartBeatComponent {
         httpPost.setHeader("Accept", HEADER_VALUE_APPLICATION_JSON);
         httpPost.setHeader("Content-type", HEADER_VALUE_APPLICATION_JSON);
 
+//        DashboardGrpcClient dashboardGrpcClient = new DashboardGrpcClient();
+        TestDashboard testDashboard = new TestDashboard();
+
         ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+//        MIClient miClient = MIClient.getInstance();
         Runnable runnableTask = () -> {
+            // Initialize the deployment of grpc MI client
+//           miClient.initializeGrpcClient();
+
+
             JsonObject changeNotification = createChangeNotification();
             heartbeatPayload.add(CHANGE_NOTIFICATION, changeNotification);
 

@@ -1,13 +1,11 @@
-package org.wso2.micro.integrator.grpc.client;
+package org.wso2.micro.integrator.initializer.dashboard;
 
 import io.grpc.*;
 import io.grpc.stub.StreamObserver;
 import org.wso2.micro.integrator.grpc.proto.*;
-import java.util.concurrent.TimeUnit;
 
-public class MIClient {
+public class TestDashboard {
 
-    private static final MIClient INSTANCE = new MIClient();
     private MIServiceGrpc.MIServiceStub stub;
     StreamObserver<DataRequest> requestObserver;
     private final String nodeID = "dev_Node";
@@ -69,28 +67,28 @@ public class MIClient {
             .setOsName("Windows 10")
             .setProductName("WSO2 Micro Integrator")
             .setJavaHome("C:\\Program Files\\OpenJDK\\jdk-11.0.18.10-hotspot").build();
-    private MIClient() {
-//        initializeGrpcClient();
-    }
 
-    public static MIClient getInstance() {
-        return INSTANCE;
-    }
 
-    public void initializeGrpcClient(){
-        System.out.println("Initializing gRPC client");
+
+    public TestDashboard() {
+        System.out.println("TestDashboard.TestDashboard()");
+        init();
+    }
+    public void init() {
+        System.out.println("TestDashboard.init()");
 
         Runnable task = () -> {
+            System.out.println("Starting gRPC client");
             try {
-                System.out.println("Starting gRPC client");
                 startGrpcClient();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                throw new RuntimeException(e);
             }
         };
         Thread thread = new Thread(task);
         thread.start();
     }
+
     private void startGrpcClient() throws InterruptedException {
         ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 8080).usePlaintext().build();
         stub = MIServiceGrpc.newStub(channel);
@@ -163,7 +161,7 @@ public class MIClient {
         };
 
 
-//        requestObserver = stub.dataExchange(responseObserver);
+        requestObserver = stub.dataExchange(responseObserver);
 
         Handshake handshake = Handshake.newBuilder().setNodeID(nodeID).setGroupID(groupID).build();
         DataRequest request = DataRequest.newBuilder().setHandshake(handshake).build();
