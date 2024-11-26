@@ -1,20 +1,22 @@
 /*
- *  Copyright (c) 2020, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ * Copyright (c) 2024, WSO2 LLC. (http://www.wso2.org) All Rights Reserved.
  *
- *  WSO2 Inc. licenses this file to you under the Apache License,
- *  Version 2.0 (the "License"); you may not use this file except
- *  in compliance with the License.
- *  You may obtain a copy of the License at
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
+ * KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations
  * under the License.
+ *
  */
+
 package org.wso2.micro.integrator.initializer.deployment.application.deployer;
 
 import org.apache.axiom.om.OMElement;
@@ -24,14 +26,18 @@ import org.apache.axis2.context.ConfigurationContext;
 import org.apache.axis2.deployment.AbstractDeployer;
 import org.apache.axis2.deployment.DeploymentException;
 import org.apache.axis2.deployment.repository.util.DeploymentFileData;
+import org.apache.axis2.deployment.util.Utils;
 import org.apache.axis2.engine.AxisConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.synapse.api.API;
 import org.apache.synapse.config.SynapseConfigUtils;
 import org.apache.synapse.config.SynapseConfiguration;
-import org.apache.synapse.api.API;
+import org.apache.synapse.deployers.ClassMediatorDeployer;
+import org.apache.synapse.libraries.LibClassLoader;
+import org.aspectj.util.UtilClassLoader;
 import org.wso2.carbon.securevault.SecretCallbackHandlerService;
 import org.wso2.micro.application.deployer.AppDeployerUtils;
 import org.wso2.micro.application.deployer.CarbonApplication;
@@ -50,6 +56,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -65,9 +72,9 @@ import javax.xml.stream.XMLStreamException;
 import static org.wso2.micro.core.Constants.SUPER_TENANT_DOMAIN_NAME;
 import static org.wso2.micro.integrator.initializer.deployment.synapse.deployer.SynapseAppDeployerConstants.API_TYPE;
 
-public class CappDeployer extends AbstractDeployer {
+public class CappDirectoryDeployer extends AbstractDeployer {
 
-    private static final Log log = LogFactory.getLog(CappDeployer.class);
+    private static final Log log = LogFactory.getLog(CappDirectoryDeployer.class);
 
     private AxisConfiguration axisConfig;
 
@@ -82,7 +89,7 @@ public class CappDeployer extends AbstractDeployer {
     /**
      * Carbon application repository directory.
      */
-    private String cAppDir;
+    private String appDir;
 
     /**
      * Carbon application file directory (i.e. 'car').
@@ -104,16 +111,17 @@ public class CappDeployer extends AbstractDeployer {
      */
     private SecretCallbackHandlerService secretCallbackHandlerService;
 
+    /**
+     * Initialize the deployer
+     *
+     * @param configurationContext - configuration context
+     */
     public void init(ConfigurationContext configurationContext) {
+
         if (log.isDebugEnabled()) {
             log.debug("Initializing Capp Deployer..");
         }
         this.axisConfig = configurationContext.getAxisConfiguration();
-
-        //delete the older extracted capps for this tenant.
-        String appUnzipDir = AppDeployerUtils.getAppUnzipDir() + File.separator +
-                AppDeployerUtils.getTenantIdString();
-        FileManipulator.deleteDir(appUnzipDir);
 
         if (ServiceCatalogUtils.isServiceCatalogEnabled()) {
             serviceCatalogConfiguration = ServiceCatalogUtils.readConfiguration(secretCallbackHandlerService);
@@ -123,21 +131,23 @@ public class CappDeployer extends AbstractDeployer {
     }
 
     public void setDirectory(String cAppDir) {
-        this.cAppDir = cAppDir;
+
+        this.appDir = cAppDir;
     }
 
     public void setExtension(String extension) {
+
         this.extension = extension;
     }
 
     /**
-     * Axis2 deployment engine will call this method when a .car archive is deployed. So we only have to call the
-     * cAppDeploymentManager to deploy it using the absolute path of the deployed .car file.
+     * Deploy the carbon application directory
      *
      * @param deploymentFileData - info about the deployed file
      * @throws DeploymentException - error while deploying cApp
      */
     public void deploy(DeploymentFileData deploymentFileData) throws DeploymentException {
+
         String artifactPath = deploymentFileData.getAbsolutePath();
         try {
             deployCarbonApps(artifactPath);
@@ -152,28 +162,40 @@ public class CappDeployer extends AbstractDeployer {
      * Deploy synapse artifacts in a carbon application.
      *
      * @param artifactPath - file path to be processed
-     * @throws CarbonException - error while building
+     * @throws CarbonException - error while deploying cApp
      */
     private void deployCarbonApps(String artifactPath) throws CarbonException {
-
-        File cAppDirectory = new File(this.cAppDir);
-
-        String archPathToProcess = AppDeployerUtils.formatPath(artifactPath);
-        String cAppName = archPathToProcess.substring(archPathToProcess.lastIndexOf('/') + 1);
-
-        if (!isCAppArchiveFile(cAppName)) {
-            log.warn("Only .car files are processed. Hence " + cAppName + " will be ignored");
+        // loop through the extracted directory and deploy each cApp
+        File extractedDir = new File(artifactPath);
+        File[] allFiles = extractedDir.listFiles();
+        if (allFiles == null) {
             return;
         }
+        for (File file : allFiles) {
+            if (file.isDirectory()) {
+                deployCarbonApp(file.getAbsolutePath());
+            }
+        }
+    }
+
+    /**
+     * Deploy the carbon application directory
+     *
+     * @param artifactPath - file path to be processed
+     */
+    private void deployCarbonApp(String artifactPath) throws CarbonException {
+
+        String archPathToProcess = AppDeployerUtils.formatPath(artifactPath);
+        String appName = archPathToProcess.substring(archPathToProcess.lastIndexOf('/') + 1);
+
         if (log.isDebugEnabled()) {
-            log.debug("Carbon Application detected : " + cAppName);
+            log.debug("Carbon Application detected : " + appName);
         }
 
-        String targetCAppPath = cAppDirectory + File.separator + cAppName;
         CarbonApplication currentApp = null;
 
         try {
-            currentApp = buildCarbonApplication(targetCAppPath, cAppName, axisConfig);
+            currentApp = buildCarbonApplication(archPathToProcess, appName, axisConfig);
 
             if (currentApp != null) {
                 // deploy sub artifacts of this cApp
@@ -188,7 +210,7 @@ public class CappDeployer extends AbstractDeployer {
                 } else {
                     log.error("Some dependencies were not satisfied in cApp:" + currentApp.getAppNameWithVersion() +
                             "Check whether all dependent artifacts are included in cApp file: " +
-                            targetCAppPath);
+                            appName);
 
                     deleteExtractedCApp(currentApp.getExtractedPath());
                     // Validate synapse config to remove half added swagger definitions in the case of a faulty CAPP.
@@ -203,16 +225,16 @@ public class CappDeployer extends AbstractDeployer {
                         AppDeployerUtils.getTenantIdLogString(AppDeployerUtils.getTenantId()));
             }
         } catch (DeploymentException e) {
-            log.error("Error occurred while deploying the Carbon application: " + cAppName
+            log.error("Error occurred while deploying the Carbon application: " + appName
                     + ". Reverting successfully deployed artifacts in the CApp.", e);
             undeployCarbonApp(currentApp, axisConfig);
             // Validate synapse config to remove half added swagger definitions in the case of a faulty CAPP.
             SynapseConfigUtils.getSynapseConfiguration(SUPER_TENANT_DOMAIN_NAME).validateSwaggerTable();
             faultyCAppObjects.add(currentApp);
-            faultyCapps.add(cAppName);
+            faultyCapps.add(appName);
         }
-        if (serviceCatalogConfiguration != null && !faultyCapps.contains(cAppName)) {
-            ServiceCatalogDeployer serviceDeployer = new ServiceCatalogDeployer(cAppName,
+        if (serviceCatalogConfiguration != null && !faultyCapps.contains(appName)) {
+            ServiceCatalogDeployer serviceDeployer = new ServiceCatalogDeployer(appName,
                     ((CarbonAxisConfigurator) axisConfig.getAxisConfiguration().getConfigurator()).getRepoLocation(),
                     serviceCatalogConfiguration);
             serviceCatalogExecutor.execute(serviceDeployer);
@@ -222,22 +244,18 @@ public class CappDeployer extends AbstractDeployer {
     /**
      * Builds the carbon application from app configuration created using the artifacts.xml path.
      *
-     * @param targetCAppPath - path to target carbon application
-     * @param cAppName       - name of the carbon application
-     * @param axisConfig     - AxisConfiguration instance
+     * @param appPath    - path to target carbon application
+     * @param cAppName   - name of the carbon application
+     * @param axisConfig - AxisConfiguration instance
      * @return - CarbonApplication instance if successfull. otherwise null..
      * @throws CarbonException - error while building
      */
-    private CarbonApplication buildCarbonApplication(String targetCAppPath, String cAppName,
-                                                     AxisConfiguration axisConfig) throws CarbonException {
-        String tempExtractedDirPath = extractCarbonApplication(targetCAppPath, cAppName);
-        if (tempExtractedDirPath == null) {
-            log.error("Error occurred while extracting the Carbon Application : " + cAppName);
-            return null;
-        }
+    private CarbonApplication buildCarbonApplication(String appPath, String cAppName,
+                                                     AxisConfiguration axisConfig)
+            throws CarbonException, DeploymentException {
 
         // Build the app configuration by providing the artifacts.xml path
-        ApplicationConfiguration appConfig = new ApplicationConfiguration(tempExtractedDirPath);
+        ApplicationConfiguration appConfig = new ApplicationConfiguration(appPath + File.separator);
 
         // If we don't have features (artifacts) for this server, ignore
         if (appConfig.getApplicationArtifact().getDependencies().isEmpty()) {
@@ -247,16 +265,20 @@ public class CappDeployer extends AbstractDeployer {
         }
 
         CarbonApplication carbonApplication = new CarbonApplication();
-        carbonApplication.setAppFilePath(targetCAppPath);
-        carbonApplication.setExtractedPath(tempExtractedDirPath);
+        carbonApplication.setAppFilePath(appPath);
+        carbonApplication.setExtractedPath(appPath);
         carbonApplication.setAppConfig(appConfig);
+
+        LibClassLoader libLoader = new LibClassLoader(new URL[]{},
+                Utils.getClassLoader(ClassMediatorDeployer.class.getClassLoader(), appPath, false));
+        carbonApplication.setClassLoader(libLoader);
 
         // Set App Name
         String appName = appConfig.getAppName();
         if (appName == null) {
             log.warn("No application name found in Carbon Application : " + cAppName + ". Using " +
                     "the file name as the application name");
-            appName = cAppName.substring(0, cAppName.lastIndexOf('.'));
+            appName = cAppName;
         }
         // to support multiple capp versions, we check app name with version
         if (appExists(appConfig.getAppNameWithVersion(), axisConfig)) {
@@ -289,6 +311,7 @@ public class CappDeployer extends AbstractDeployer {
      * @return - true if exits
      */
     private boolean appExists(String newAppNameWithVersion, AxisConfiguration axisConfig) {
+
         CarbonApplication appToRemove = null;
         for (CarbonApplication carbonApp : getCarbonApps()) {
             if (newAppNameWithVersion.equals(carbonApp.getAppNameWithVersion())) {
@@ -312,6 +335,7 @@ public class CappDeployer extends AbstractDeployer {
      * @param path the path of the directory to be deleted
      */
     private void deleteExtractedCApp(String path) {
+
         try {
             FileUtils.deleteDirectory(new File(path));
         } catch (IOException e) {
@@ -325,6 +349,7 @@ public class CappDeployer extends AbstractDeployer {
      * @param carbonApp - CarbonApplication instance
      */
     private void addCarbonApp(CarbonApplication carbonApp) {
+
         synchronized (lock) {
             cAppMap.add(carbonApp);
         }
@@ -336,10 +361,12 @@ public class CappDeployer extends AbstractDeployer {
      * @return - list of cApps
      */
     public static List<CarbonApplication> getCarbonApps() {
+
         return Collections.unmodifiableList(cAppMap);
     }
 
     public static CarbonApplication getCarbonAppByName(String cAppName) {
+
         for (CarbonApplication capp : cAppMap) {
             if (cAppName.equals(capp.getAppName())) {
                 return capp;
@@ -355,6 +382,7 @@ public class CappDeployer extends AbstractDeployer {
      * @return Returns boolean.
      */
     private boolean isCAppArchiveFile(String filename) {
+
         return (filename.endsWith(".car"));
     }
 
@@ -364,6 +392,7 @@ public class CappDeployer extends AbstractDeployer {
      * @param handler - app deployer which implements the AppDeploymentHandler interface
      */
     public synchronized void registerDeploymentHandler(AppDeploymentHandler handler) {
+
         appDeploymentHandlers.add(handler);
     }
 
@@ -375,6 +404,7 @@ public class CappDeployer extends AbstractDeployer {
      * @throws org.wso2.micro.core.util.CarbonException - on error
      */
     private void searchArtifacts(String rootDirPath, CarbonApplication parentApp) throws CarbonException {
+
         SynapseConfiguration synapseConfiguration =
                 SynapseConfigUtils.getSynapseConfiguration(SUPER_TENANT_DOMAIN_NAME);
         // For each CAPP initiate again.
@@ -447,7 +477,7 @@ public class CappDeployer extends AbstractDeployer {
                     String apiName = getApiNameFromFile(new FileInputStream(apiXmlPath));
                     if (!StringUtils.isEmpty(apiName)) {
                         // Re-constructing swagger table with API name since artifact name is not unique
-                        apiArtifactMap.put(artifact.getName(),apiName);
+                        apiArtifactMap.put(artifact.getName(), apiName);
                     }
                 }
             } catch (FileNotFoundException e) {
@@ -489,6 +519,7 @@ public class CappDeployer extends AbstractDeployer {
      */
     private Artifact buildAppArtifact(CarbonApplication parentApp, InputStream artifactXmlStream)
             throws CarbonException {
+
         Artifact artifact = null;
         try {
             OMElement artElement = new StAXOMBuilder(artifactXmlStream).getDocumentElement();
@@ -519,6 +550,7 @@ public class CappDeployer extends AbstractDeployer {
      * @return true if ready, else false
      */
     private boolean isArtifactReadyToDeploy(Artifact rootArtifact) {
+
         if (rootArtifact == null) {
             return false;
         }
@@ -543,6 +575,7 @@ public class CappDeployer extends AbstractDeployer {
      * @param allArtifacts - all artifacts found under current cApp
      */
     private void buildDependencyTree(Artifact rootArtifact, List<Artifact> allArtifacts) {
+
         for (Artifact.Dependency dep : rootArtifact.getDependencies()) {
             for (Artifact temp : allArtifacts) {
                 if (dep.getName().equals(temp.getName())) {
@@ -565,6 +598,7 @@ public class CappDeployer extends AbstractDeployer {
     }
 
     private void handleException(String msg, Exception e) throws CarbonException {
+
         log.error(msg, e);
         throw new CarbonException(msg, e);
     }
@@ -577,6 +611,7 @@ public class CappDeployer extends AbstractDeployer {
      * @throws DeploymentException - error while un-deploying cApp
      */
     public void undeploy(String filePath) throws DeploymentException {
+
         CarbonApplication existingApp = null;
         for (CarbonApplication carbonApp : getCarbonApps()) {
             if (filePath.equals(carbonApp.getAppFilePath())) {
@@ -601,6 +636,7 @@ public class CappDeployer extends AbstractDeployer {
      */
     private void undeployCarbonApp(CarbonApplication carbonApp,
                                    AxisConfiguration axisConfig) {
+
         log.info("Undeploying Carbon Application : " + carbonApp.getAppNameWithVersion() + "...");
         // Call the undeployer handler chain
         try {
@@ -610,10 +646,6 @@ public class CappDeployer extends AbstractDeployer {
             }
             // Remove the app from cAppMap list
             removeCarbonApp(carbonApp);
-
-            // Remove the app from registry
-            // removing the extracted CApp form tmp/carbonapps/
-            FileManipulator.deleteDir(carbonApp.getExtractedPath());
             log.info("Successfully undeployed Carbon Application : " + carbonApp.getAppNameWithVersion()
                     + AppDeployerUtils.getTenantIdLogString(AppDeployerUtils.getTenantId()));
         } catch (Exception e) {
@@ -627,6 +659,7 @@ public class CappDeployer extends AbstractDeployer {
      * @param carbonApp - CarbonApplication instance
      */
     private void removeCarbonApp(CarbonApplication carbonApp) {
+
         synchronized (lock) {
             cAppMap.remove(carbonApp);
         }
@@ -638,6 +671,7 @@ public class CappDeployer extends AbstractDeployer {
      * @param appFilePath - file path to faulty carbon application
      */
     void removeFaultyCarbonApp(String appFilePath) {
+
         synchronized (lock) {
             String cAppName = appFilePath.substring(appFilePath.lastIndexOf(File.separator) + 1);
             faultyCapps.remove(cAppName);
@@ -656,6 +690,7 @@ public class CappDeployer extends AbstractDeployer {
      * @return list of faulty CAPPs
      */
     public static List<String> getFaultyCapps() {
+
         return Collections.unmodifiableList(faultyCapps);
     }
 
@@ -665,6 +700,7 @@ public class CappDeployer extends AbstractDeployer {
      * @return list of faulty cApp objects
      */
     public static List<CarbonApplication> getFaultyCAppObjects() {
+
         return Collections.unmodifiableList(faultyCAppObjects);
     }
 
@@ -676,6 +712,7 @@ public class CappDeployer extends AbstractDeployer {
     }
 
     public void setSecretCallbackHandlerService(SecretCallbackHandlerService secretCallbackHandlerService) {
+
         this.secretCallbackHandlerService = secretCallbackHandlerService;
     }
 
@@ -699,7 +736,4 @@ public class CappDeployer extends AbstractDeployer {
         }
     }
 
-    private String extractCarbonApplication(String targetCAppPath, String cAppName) throws CarbonException {
-        return AppDeployerUtils.extractCAppToDirectory(targetCAppPath, cAppName);
-    }
 }

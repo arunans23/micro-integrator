@@ -42,6 +42,7 @@ import org.wso2.micro.application.deployer.CarbonApplication;
 import org.wso2.micro.application.deployer.config.Artifact;
 import org.wso2.micro.core.util.AuditLogger;
 import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDeployer;
+import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDirectoryDeployer;
 import org.wso2.micro.integrator.management.apis.security.handler.SecurityUtils;
 import org.wso2.micro.integrator.security.user.api.UserStoreException;
 
@@ -174,9 +175,9 @@ public class CarbonAppResource extends APIResource {
     private void populateSearchResults(MessageContext messageContext, String searchKey) {
 
         List<CarbonApplication> appList
-                = CappDeployer.getCarbonApps().stream().filter(capp -> capp.getAppName().toLowerCase().contains(searchKey))
+                = CappDirectoryDeployer.getCarbonApps().stream().filter(capp -> capp.getAppName().toLowerCase().contains(searchKey))
                 .collect(Collectors.toList());
-        List<CarbonApplication> faultyAppList = CappDeployer.getFaultyCAppObjects().stream()
+        List<CarbonApplication> faultyAppList = CappDirectoryDeployer.getFaultyCAppObjects().stream()
                 .filter(capp -> capp.getAppName().toLowerCase().contains(searchKey)).collect(Collectors.toList());
         setResponseBody(appList, faultyAppList, messageContext);
     }
@@ -383,9 +384,9 @@ public class CarbonAppResource extends APIResource {
     private void populateCarbonAppList(MessageContext messageContext) {
 
         List<CarbonApplication> appList
-                = CappDeployer.getCarbonApps();
+                = CappDirectoryDeployer.getCarbonApps();
 
-        List<CarbonApplication> faultyAppList = CappDeployer.getFaultyCAppObjects();
+        List<CarbonApplication> faultyAppList = CappDirectoryDeployer.getFaultyCAppObjects();
 
         setResponseBody(appList, faultyAppList, messageContext);
     }
@@ -407,7 +408,7 @@ public class CarbonAppResource extends APIResource {
     private JSONObject getCarbonAppByName(String carbonAppName) {
 
         List<CarbonApplication> appList
-                = CappDeployer.getCarbonApps();
+                = CappDirectoryDeployer.getCarbonApps();
 
         for (CarbonApplication app: appList) {
             if (app.getAppName().equals(carbonAppName)) {
