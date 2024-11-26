@@ -37,7 +37,7 @@ import org.wso2.micro.application.deployer.AppDeployerUtils;
 import org.wso2.micro.application.deployer.CarbonApplication;
 import org.wso2.micro.core.util.CarbonException;
 import org.wso2.micro.core.util.StringUtils;
-import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDeployer;
+import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDirectoryDeployer;
 import org.wso2.securevault.SecretResolver;
 import org.wso2.securevault.SecretResolverFactory;
 import org.wso2.securevault.commons.MiscellaneousUtil;
@@ -695,13 +695,13 @@ public class ServiceCatalogUtils {
             log.debug("Start service-catalog uploading process");
         }
         // Check for faulty CAPPs. If atleast one CAPP is fault MI is not ready - readiness probe.
-        ArrayList<String> faultyCapps = new ArrayList<>(CappDeployer.getFaultyCapps());
+        ArrayList<String> faultyCapps = new ArrayList<>(CappDirectoryDeployer.getFaultyCapps());
         if (!faultyCapps.isEmpty()) {
             log.info("Faulty CAPPs detected - aborting the service-catalog uploader");
             return false;
         }
         // Skip if no CAPPs are deployed
-        ArrayList<CarbonApplication> deployedCapps = new ArrayList<>(CappDeployer.getCarbonApps());
+        ArrayList<CarbonApplication> deployedCapps = new ArrayList<>(CappDirectoryDeployer.getCarbonApps());
         if (deployedCapps.isEmpty()) {
             log.info("Cannot find carbon applications - aborting the service-catalog uploader");
             return false;

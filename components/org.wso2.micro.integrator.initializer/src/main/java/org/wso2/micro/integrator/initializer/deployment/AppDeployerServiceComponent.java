@@ -30,6 +30,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.wso2.carbon.securevault.SecretCallbackHandlerService;
+import org.wso2.micro.application.deployer.AppDeployerUtils;
 import org.wso2.micro.application.deployer.handler.DefaultAppDeployer;
 import org.wso2.micro.core.CarbonAxisConfigurator;
 import org.wso2.micro.integrator.core.UserStoreTemporaryService;
@@ -37,6 +38,7 @@ import org.wso2.micro.integrator.dataservices.core.DBDeployer;
 import org.wso2.micro.integrator.initializer.StartupFinalizer;
 import org.wso2.micro.integrator.initializer.dashboard.HeartBeatComponent;
 import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDeployer;
+import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDirectoryDeployer;
 import org.wso2.micro.integrator.initializer.deployment.synapse.deployer.FileRegistryResourceDeployer;
 import org.wso2.micro.integrator.initializer.deployment.synapse.deployer.SynapseAppDeployer;
 import org.wso2.micro.integrator.initializer.deployment.user.store.deployer.UserStoreDeployer;
@@ -162,24 +164,35 @@ public class AppDeployerServiceComponent {
     private void addCAppDeployer(DeploymentEngine deploymentEngine) {
         String artifactRepoPath = configCtx.getAxisConfiguration().getRepository().getPath();
 
-        // Initialize CApp deployer here
+        // Cleanup any existing CApp extractions
+        AppDeployerUtils.cleanupCAppExtractions();
         CappDeployer cappDeployer = new CappDeployer();
         cappDeployer.setDirectory(artifactRepoPath + DeploymentConstants.CAPP_DIR_NAME);
-        cappDeployer.setSecretCallbackHandlerService(secretCallbackHandlerService);
+        cappDeployer.setExtension(DeploymentConstants.CAPP_TYPE_EXTENSION);
         cappDeployer.init(configCtx);
-
-        // Register application deployment handlers
-        cappDeployer.registerDeploymentHandler(new FileRegistryResourceDeployer(
-                synapseEnvironmentService.getSynapseEnvironment().getSynapseConfiguration().getRegistry()));
-        cappDeployer.registerDeploymentHandler(new DataSourceCappDeployer());
-        cappDeployer.registerDeploymentHandler(new DefaultAppDeployer());
-        cappDeployer.registerDeploymentHandler(new SynapseAppDeployer());
-
-        //Add the deployer to deployment engine. This should be done after registering the deployment handlers.
         deploymentEngine.addDeployer(cappDeployer, artifactRepoPath + DeploymentConstants.CAPP_DIR_NAME,
-                                     DeploymentConstants.CAPP_TYPE_EXTENSION);
+                DeploymentConstants.CAPP_TYPE_EXTENSION);
         if (log.isDebugEnabled()) {
             log.debug("Successfully registered CappDeployer");
+        }
+
+        // Initialize CApp deployer here
+        CappDirectoryDeployer cappDirectoryDeployer = new CappDirectoryDeployer();
+        cappDirectoryDeployer.setDirectory(artifactRepoPath + DeploymentConstants.APP_DIR_NAME);
+        cappDirectoryDeployer.setSecretCallbackHandlerService(secretCallbackHandlerService);
+        cappDirectoryDeployer.init(configCtx);
+
+        // Register application deployment handlers
+        cappDirectoryDeployer.registerDeploymentHandler(new FileRegistryResourceDeployer(
+                synapseEnvironmentService.getSynapseEnvironment().getSynapseConfiguration().getRegistry()));
+        cappDirectoryDeployer.registerDeploymentHandler(new DataSourceCappDeployer());
+        cappDirectoryDeployer.registerDeploymentHandler(new DefaultAppDeployer());
+        cappDirectoryDeployer.registerDeploymentHandler(new SynapseAppDeployer());
+
+        //Add the deployer to deployment engine. This should be done after registering the deployment handlers.
+        deploymentEngine.addDeployer(cappDirectoryDeployer, artifactRepoPath + DeploymentConstants.APP_DIR_NAME, null);
+        if (log.isDebugEnabled()) {
+            log.debug("Successfully registered CappDirectoryDeployer");
         }
     }
 

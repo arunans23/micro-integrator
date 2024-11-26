@@ -57,7 +57,7 @@ import org.wso2.integration.transaction.counter.TransactionCountHandler;
 import org.wso2.micro.integrator.core.services.Axis2ConfigurationContextService;
 import org.wso2.micro.integrator.core.services.CarbonServerConfigurationService;
 import org.wso2.micro.integrator.core.util.MicroIntegratorBaseUtils;
-import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDeployer;
+import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDirectoryDeployer;
 import org.wso2.micro.integrator.initializer.handler.ProxyLogHandler;
 import org.wso2.micro.integrator.initializer.handler.SynapseExternalPropertyConfigurator;
 import org.wso2.micro.integrator.initializer.persistence.MediationPersistenceManager;
@@ -263,7 +263,7 @@ public class ServiceBusInitializer {
     }
 
     private String getMainSequenceName(String cappName) {
-        CarbonApplication capp = CappDeployer.getCarbonAppByName(cappName);
+        CarbonApplication capp = CappDirectoryDeployer.getCarbonAppByName(cappName);
         if (capp == null) {
             log.error("Invalid cApp name. cApp name: " + cappName + " not found");
             return null;

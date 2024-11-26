@@ -91,6 +91,10 @@ public final class AppDeployerUtils {
         return APP_UNZIP_DIR;
     }
 
+    public static String getAppsDir() {
+        return getAxis2Repo() + File.separator + "apps";
+    }
+
     private static void createAppDirectory(){
 		//cApps should be temporarily uploaded to worker directory,
     	//then house keeping task will delete after timeout
@@ -99,7 +103,6 @@ public final class AppDeployerUtils {
 		}
 
         createDir(getAppUnzipDir());
-
         File doNotDeleteNote = new File(getAppUnzipDir(), "DO-NOT-DELETE.txt");
         PrintWriter writer = null;
         try {
@@ -482,6 +485,65 @@ public final class AppDeployerUtils {
         return dest;
     }
 
+    /**
+     * Create a directory to extract the cApp artifact
+     *
+     * @return - path of the created directory
+     */
+    public static boolean extractCAppToDirectory(String carAppPath, String carAppName) {
+        String parentPath = getAppsDir() + File.separator  + carAppName + File.separator;
+        createDir(parentPath);
+        try {
+            extract(carAppPath, parentPath);
+            return true;
+        } catch (IOException e) {
+            log.error("Error while extracting cApp artifact : " + carAppName, e);
+        }
+        return false;
+    }
+
+    /**
+     * Delete the extracted cApp artifact
+     *
+     * @param cAppPath - path of the extracted cApp artifact
+     * @return - true if deleted successfully
+     */
+    public static boolean deleteExtractedCApp(String cAppPath) {
+
+        String cAppName = cAppPath.substring(cAppPath.lastIndexOf('/') + 1);
+        String cAppDirPath = getAppsDir() + File.separator + cAppName;
+        File cAppDir = new File(cAppDirPath);
+        if (cAppDir.exists()) {
+            if (log.isDebugEnabled()) {
+                log.debug("Deleting extracted carbon application : " + cAppDirPath);
+            }
+            return deleteDirectory(cAppDir);
+        }
+        return false;
+    }
+
+    /**
+     * Delete a directory and all its contents
+     *
+     * @param dir - directory to delete
+     * @return - true if deleted successfully
+     */
+    private static boolean deleteDirectory(File dir) {
+        if (dir.isDirectory()) {
+            // Recursively delete all files and subdirectories
+            File[] children = dir.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    if (!deleteDirectory(child)) {
+                        return false; // Abort if deletion fails
+                    }
+                }
+            }
+        }
+        // Delete the directory or file
+        return dir.delete();
+    }
+
     public static String createAppExtractionPath(String parentAppName) {
     	createAppDirectory();
         String tenantId = AppDeployerUtils.getTenantIdString();
@@ -489,6 +551,20 @@ public final class AppDeployerUtils {
                             System.currentTimeMillis() + parentAppName + File.separator;
         createDir(parentPath);
         return parentPath;
+    }
+
+    /**
+     * Cleanup the extracted cApp artifacts
+     */
+    public static void cleanupCAppExtractions() {
+        File cAppDir = new File(getAppsDir());
+        if (cAppDir.exists()) {
+            for (File file : cAppDir.listFiles()) {
+                if (file.isDirectory() && file.getName().endsWith(".car")) {
+                    deleteDirectory(file);
+                }
+            }
+        }
     }
 
     /**
