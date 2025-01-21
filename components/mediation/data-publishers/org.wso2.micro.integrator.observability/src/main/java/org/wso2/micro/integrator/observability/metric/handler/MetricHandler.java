@@ -17,6 +17,8 @@
  */
 package org.wso2.micro.integrator.observability.metric.handler;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -309,23 +311,45 @@ public class MetricHandler extends AbstractExtendedSynapseHandler {
      * @return String The api name
      */
     private String getApiName(String contextPath, MessageContext synCtx) {
+        Collection<API> apiList = synCtx.getEnvironment().getSynapseConfiguration().getAPIs();
+        Collection<API> withVersionsApiList = new ArrayList<>();
+        Collection<API> defaultApiList = new ArrayList<>();
+        updateApiLists(apiList, withVersionsApiList, defaultApiList);
+        if (!withVersionsApiList.isEmpty()) {
+            String apiName = getResolvedApiName(contextPath, synCtx, withVersionsApiList);
+            if (apiName != null) {
+                return apiName;
+            }
+        }
+        return getResolvedApiName(contextPath, synCtx, defaultApiList);
+    }
+
+    private static String getResolvedApiName(String contextPath, MessageContext synCtx,
+                                                       Collection<API> apiList) {
         String apiName = null;
-        for (API api : synCtx.getEnvironment().getSynapseConfiguration().getAPIs()) {
+        for (API api : apiList) {
             String apiContextPath = api.getContext();
-            if (api.getVersionStrategy().getVersion() != null) {
+            if (StringUtils.isNotBlank(api.getVersionStrategy().getVersion())) {
                 apiContextPath = apiContextPath + "/" + api.getVersionStrategy().getVersion();
             }
             if (RESTUtils.matchApiPath(contextPath, apiContextPath)) {
                 apiName = api.getName();
                 synCtx.setProperty(RESTConstants.PROCESSED_API, api);
-                // if we match to a versioned API, search should stop.
-                // else check other API's to see if there is a match
-                if (StringUtils.isNotEmpty(api.getVersion())) {
-                    break;
-                }
+                break;
             }
         }
         return apiName;
+    }
+
+    private void updateApiLists(Collection<API> apiList, Collection<API> withVersionsApiList,
+                                           Collection<API> defaultApiList) {
+        for (API api : apiList) {
+            if (StringUtils.isNotBlank(api.getVersionStrategy().getVersion())) {
+                withVersionsApiList.add(api);
+            } else {
+                defaultApiList.add(api);
+            }
+        }
     }
 
     /**

@@ -48,7 +48,6 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
-import org.wso2.carbon.inbound.endpoint.EndpointListenerLoader;
 import org.wso2.carbon.securevault.SecretCallbackHandlerService;
 import org.wso2.config.mapper.ConfigParser;
 import org.wso2.micro.application.deployer.CarbonApplication;
@@ -173,7 +172,10 @@ public class ServiceBusInitializer {
             }
             SynapseEnvironment synapseEnvironment = contextInfo.getSynapseEnvironment();
             List handlers = synapseEnvironment.getSynapseHandlers();
-            if (System.getProperty(ServiceBusConstants.ENABLE_PROMETHEUS_API_PROPERTY) != null) {
+            String prometheusApiEnabled = System.getProperty(ServiceBusConstants.ENABLE_PROMETHEUS_API_PROPERTY);
+            if ("false".equals(prometheusApiEnabled)) {
+                handlers.remove(handlers.stream().filter(c -> c instanceof MetricHandler).findFirst().orElse(null));
+            } else if ("true".equals(prometheusApiEnabled)) {
                 if (!handlers.stream().anyMatch(c -> c instanceof MetricHandler)) {
                     handlers.add(new MetricHandler());
                 }
@@ -241,8 +243,6 @@ public class ServiceBusInitializer {
             bndCtx.registerService(SynapseRegistrationsService.class.getName(), synRegistrationsSvc, null);
             /*configCtxSvc.getServerConfigContext().setProperty(ConfigurationManager.CONFIGURATION_MANAGER,
                     configurationManager);*/
-            // Start Inbound Endpoint Listeners
-            EndpointListenerLoader.loadListeners();
             String injectCarName = System.getProperty(ServiceBusConstants.AUTOMATION_MODE_CAR_NAME_SYSTEM_PROPERTY);
             if (injectCarName != null && !injectCarName.isEmpty()) {
                 String sequenceName = getMainSequenceName(injectCarName);

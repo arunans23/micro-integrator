@@ -22,7 +22,10 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.commons.util.MiscellaneousUtil;
 import org.apache.synapse.core.SynapseEnvironment;
+import org.apache.synapse.inbound.InboundEndpoint;
 import org.apache.synapse.message.processor.MessageProcessor;
+import org.apache.synapse.task.TaskDescription;
+import org.apache.synapse.task.TaskDescriptionRepository;
 import org.wso2.micro.integrator.coordination.ClusterCoordinator;
 import org.wso2.micro.integrator.core.util.MicroIntegratorBaseUtils;
 import org.wso2.micro.integrator.ntask.common.TaskException;
@@ -32,13 +35,13 @@ import org.wso2.micro.integrator.ntask.coordination.task.CoordinatedTask;
 import org.wso2.micro.integrator.ntask.coordination.task.resolver.TaskLocationResolver;
 import org.wso2.micro.integrator.ntask.coordination.task.store.TaskStore;
 import org.wso2.micro.integrator.ntask.coordination.task.store.cleaner.TaskStoreCleaner;
+import org.wso2.micro.integrator.ntask.core.TaskUtils;
 import org.wso2.micro.integrator.ntask.core.impl.standalone.ScheduledTaskManager;
 import org.wso2.micro.integrator.ntask.core.internal.DataHolder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,6 +88,7 @@ public class CoordinatedTaskScheduler implements Runnable {
         try {
             pauseDeactivatedTasks();
             scheduleAssignedTasks(CoordinatedTask.States.ACTIVATED);
+            checkInterrupted();
             if (clusterCoordinator.isLeader()) {
                 // cleaning will run for each n times resolving frequency . ( n = 0,1,2 ... ).
                 if (resolveCount % resolvingFrequency == 0) {
@@ -101,8 +105,34 @@ public class CoordinatedTaskScheduler implements Runnable {
             }
             // schedule all tasks assigned to this node and in state none
             scheduleAssignedTasks(CoordinatedTask.States.NONE);
+            checkInterrupted();
         } catch (Throwable throwable) { // catching throwable to prohibit permanent stopping of the executor service.
             LOG.fatal("Unexpected error occurred while trying to schedule tasks.", throwable);
+        }
+    }
+
+    /**
+     * Check if the task is interrupted.
+     *
+     * @throws TaskCoordinationException when something goes wrong connecting to the store
+     */
+    private void checkInterrupted() throws InterruptedException {
+
+        if (Thread.currentThread().isInterrupted()) {
+            try {
+                List<String> tasks = taskManager.getLocallyRunningCoordinatedTasks();
+                // stop all running coordinated tasks.
+                tasks.forEach(task -> {
+                    try {
+                        taskManager.stopExecutionTemporarily(task);
+                    } catch (TaskException e) {
+                        LOG.error("Unable to pause the task " + task, e);
+                    }
+                });
+            } finally {
+                Thread.currentThread().interrupt();
+                throw new InterruptedException("Task was interrupted.");
+            }
         }
     }
 
@@ -135,7 +165,7 @@ public class CoordinatedTaskScheduler implements Runnable {
                                  + "in this node or an invalid entry, hence ignoring it.");
             }
         });
-        cleanUpMessageProcessors(pausedTasks);
+        notifyOnPause(pausedTasks);
         taskStore.updateTaskState(pausedTasks, CoordinatedTask.States.PAUSED);
     }
 
@@ -146,13 +176,13 @@ public class CoordinatedTaskScheduler implements Runnable {
      */
     private void addFailedTasks() throws TaskCoordinationException {
 
-        List<String> failedTasks = taskManager.getAdditionFailedTasks();
+        List<ScheduledTaskManager.TaskEntry> failedTasks = taskManager.getAdditionFailedTasks();
         if (LOG.isDebugEnabled()) {
             LOG.debug("Following list of tasks were found in the failed list.");
             failedTasks.forEach(LOG::debug);
         }
-        for (String task : failedTasks) {
-            taskStore.addTaskIfNotExist(task);
+        for (ScheduledTaskManager.TaskEntry task : failedTasks) {
+            taskStore.addTaskIfNotExist(task.getName(), task.getState());
             taskManager.removeTaskFromAdditionFailedTaskList(task);
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Successfully added the failed task [" + task + "]");
@@ -166,7 +196,8 @@ public class CoordinatedTaskScheduler implements Runnable {
      * @param state - The state of the tasks which need to be scheduled.
      * @throws TaskCoordinationException - When something goes wrong while retrieving all the assigned tasks.
      */
-    private void scheduleAssignedTasks(CoordinatedTask.States state) throws TaskCoordinationException {
+    private void scheduleAssignedTasks(CoordinatedTask.States state) throws TaskCoordinationException
+            , InterruptedException {
 
         LOG.debug("Retrieving tasks assigned to this node and to be scheduled.");
         List<String> tasksOfThisNode = taskStore.retrieveTaskNames(localNodeId, state);
@@ -184,6 +215,7 @@ public class CoordinatedTaskScheduler implements Runnable {
                     LOG.debug("Submitting retrieved task [" + taskName + "] to the task manager.");
                 }
                 try {
+                    checkInterrupted();
                     taskManager.scheduleCoordinatedTask(taskName);
                 } catch (TaskException ex) {
                     if (!TaskException.Code.DATABASE_ERROR.equals(ex.getCode())) {
@@ -222,20 +254,35 @@ public class CoordinatedTaskScheduler implements Runnable {
         taskStore.updateAssignmentAndState(tasksToBeUpdated);
     }
 
-    private void cleanUpMessageProcessors(List<String> pausedTasks) {
-
+    private void notifyOnPause(List<String> pausedTasks) {
         Set<String> completedProcessors = new HashSet();
+        Set<String> completedInboundEndpoints = new HashSet();
+        SynapseEnvironment synapseEnvironment = MicroIntegratorBaseUtils.getSynapseEnvironment();
+        TaskDescriptionRepository taskRepo = synapseEnvironment.getTaskManager().getTaskDescriptionRepository();
         pausedTasks.forEach(task -> {
             if (MiscellaneousUtil.isTaskOfMessageProcessor(task)) {
                 String messageProcessorName = MiscellaneousUtil.getMessageProcessorName(task);
                 if (!completedProcessors.contains(messageProcessorName)) {
-                    SynapseEnvironment synapseEnvironment = MicroIntegratorBaseUtils.getSynapseEnvironment();
-                    MessageProcessor messageProcessor = synapseEnvironment.getSynapseConfiguration().getMessageProcessors().
-                            get(messageProcessorName);
+                    MessageProcessor messageProcessor = synapseEnvironment.getSynapseConfiguration()
+                            .getMessageProcessors().get(messageProcessorName);
                     if (messageProcessor != null) {
                         messageProcessor.cleanUpDeactivatedProcessors();
                     }
                     completedProcessors.add(messageProcessorName);
+                }
+            } else {
+                TaskDescription taskDescription = taskRepo.getTaskDescription(task);
+                if (taskDescription.getProperty(TaskUtils.TASK_OWNER_PROPERTY) == TaskUtils.TASK_BELONGS_TO_INBOUND_ENDPOINT) {
+                    String inboundEndpointName = (String) taskDescription.getProperty(TaskUtils.TASK_OWNER_NAME);
+
+                    if (!completedInboundEndpoints.contains(inboundEndpointName)) {
+                        InboundEndpoint inboundEndpoint = synapseEnvironment.getSynapseConfiguration()
+                                .getInboundEndpoint(inboundEndpointName);
+                        if (inboundEndpoint != null) {
+                            inboundEndpoint.updateInboundEndpointState(true);
+                        }
+                        completedInboundEndpoints.add(inboundEndpointName);
+                    }
                 }
             }
         });

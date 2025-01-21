@@ -17,7 +17,7 @@ REM  limitations under the License.
 rem ---------------------------------------------------------------------------
 rem Main Script for WSO2 Carbon
 rem
-rem Environment Variable Prequisites
+rem Environment Variable Prerequisites
 rem
 rem   CARBON_HOME   Home of CARBON installation. If not set I will  try
 rem                   to figure it out.
@@ -75,9 +75,13 @@ rem ----- Process the input command -------------------------------------------
 rem Slurp the command line arguments. This loop allows for an unlimited number
 rem of arguments (up to the command line limit, anyway).
 
+set ENV_FILE_PATH=
 
 :setupArgs
 if ""%1""=="""" goto doneStart
+
+:: Check if the argument is --env-file
+if "%~1"=="--env-file" goto setEnvPath
 
 if ""%1""==""-run""     goto commandLifecycle
 if ""%1""==""--run""    goto commandLifecycle
@@ -104,6 +108,32 @@ if ""%1""==""-car""  goto setCar
 if ""%1""==""--car"" goto setCar
 
 shift
+goto setupArgs
+
+:setEnvPath
+shift
+set ENV_FILE_PATH=%1
+goto loadEnvFile
+
+:loadEnvFile
+if not exist "%ENV_FILE_PATH%" (
+    echo Error: File "%ENV_FILE_PATH%" not found.
+) else (
+    :: Read the .env file line by line and set environment variables
+    for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_FILE_PATH%") do (
+        :: Ignore lines starting with # or empty lines
+        if not "%%A"=="" if not "%%A:~0,1%"=="#" (
+            set "key=%%A"
+            set "value=%%B"
+            :: Trim spaces if needed
+            for /f "tokens=* delims= " %%a in ("!key!") do set "key=%%a"
+            for /f "tokens=* delims= " %%b in ("!value!") do set "value=%%b"
+            :: Export the variable to the environment
+            set "!key!=!value!"
+        )
+    )
+    echo Environment variables loaded from "%ENV_FILE_PATH%".
+)
 goto setupArgs
 
 rem ----- commandVersion -------------------------------------------------------
@@ -158,7 +188,7 @@ goto supportedJdk
 
 :unknownJdk
 echo Starting WSO2 MI (in unsupported JDK %JAVA_VERSION%)
-echo [ERROR] WSO2 MI is supported only between JDK 11 and JDK 17"
+echo [ERROR] WSO2 MI is supported only between JDK 11 and JDK 21"
 goto end
 
 :supportedJdk

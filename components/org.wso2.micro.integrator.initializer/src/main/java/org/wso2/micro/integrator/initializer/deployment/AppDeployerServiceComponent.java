@@ -37,6 +37,7 @@ import org.wso2.micro.integrator.dataservices.core.DBDeployer;
 import org.wso2.micro.integrator.initializer.StartupFinalizer;
 import org.wso2.micro.integrator.initializer.dashboard.HeartBeatComponent;
 import org.wso2.micro.integrator.initializer.deployment.application.deployer.CappDeployer;
+import org.wso2.micro.integrator.initializer.deployment.config.deployer.ConfigDeployer;
 import org.wso2.micro.integrator.initializer.deployment.synapse.deployer.FileRegistryResourceDeployer;
 import org.wso2.micro.integrator.initializer.deployment.synapse.deployer.SynapseAppDeployer;
 import org.wso2.micro.integrator.initializer.deployment.user.store.deployer.UserStoreDeployer;
@@ -165,15 +166,19 @@ public class AppDeployerServiceComponent {
         // Initialize CApp deployer here
         CappDeployer cappDeployer = new CappDeployer();
         cappDeployer.setDirectory(artifactRepoPath + DeploymentConstants.CAPP_DIR_NAME);
+        cappDeployer.setAppsDirectory(artifactRepoPath + DeploymentConstants.APPS_DIR_NAME);
         cappDeployer.setSecretCallbackHandlerService(secretCallbackHandlerService);
         cappDeployer.init(configCtx);
 
         // Register application deployment handlers
+        cappDeployer.registerDeploymentHandler(new ConfigDeployer());
         cappDeployer.registerDeploymentHandler(new FileRegistryResourceDeployer(
                 synapseEnvironmentService.getSynapseEnvironment().getSynapseConfiguration().getRegistry()));
         cappDeployer.registerDeploymentHandler(new DataSourceCappDeployer());
         cappDeployer.registerDeploymentHandler(new DefaultAppDeployer());
         cappDeployer.registerDeploymentHandler(new SynapseAppDeployer());
+        // deploy capps in the apps directory during the server startup
+        cappDeployer.deployCarbonAppsDirectory();
 
         //Add the deployer to deployment engine. This should be done after registering the deployment handlers.
         deploymentEngine.addDeployer(cappDeployer, artifactRepoPath + DeploymentConstants.CAPP_DIR_NAME,

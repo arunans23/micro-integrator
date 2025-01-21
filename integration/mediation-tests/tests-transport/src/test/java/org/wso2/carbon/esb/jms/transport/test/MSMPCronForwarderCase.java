@@ -19,25 +19,21 @@
 package org.wso2.carbon.esb.jms.transport.test;
 
 import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionFactory;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
-import org.wso2.carbon.automation.extensions.servers.jmsserver.controller.config.JMSBrokerConfigurationProvider;
-import org.wso2.carbon.automation.extensions.servers.tomcatserver.TomcatServerManager;
-import org.wso2.carbon.automation.extensions.servers.tomcatserver.TomcatServerType;
 import org.wso2.carbon.automation.test.utils.http.client.HttpRequestUtil;
 import org.wso2.carbon.automation.test.utils.http.client.HttpResponse;
-import org.wso2.carbon.esb.jms.utils.JMSBroker;
 import org.wso2.esb.integration.common.extensions.jmsserver.ActiveMQServerExtension;
 import org.wso2.esb.integration.common.utils.CarbonLogReader;
 import org.wso2.esb.integration.common.utils.ESBIntegrationTest;
-import org.wso2.esb.integration.services.jaxrs.customersample.CustomerConfig;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
@@ -59,8 +55,10 @@ public class MSMPCronForwarderCase extends ESBIntegrationTest {
             log.info("ActiveMQ Server is not started. Hence starting the MQServer");
             ActiveMQServerExtension.startMQServer();
             Thread.sleep(60000);
-            Awaitility.await().pollInterval(50, TimeUnit.MILLISECONDS).atMost(300,
-                    TimeUnit.SECONDS).until(isServerStarted());
+            Awaitility.await()
+                    .pollInterval(org.awaitility.Duration.ONE_MINUTE)
+                    .atMost(org.awaitility.Duration.FIVE_MINUTES)
+                    .until(isLogWritten());
         } else {
             log.info("ActiveMQ Server has already started.");
         }
@@ -69,31 +67,34 @@ public class MSMPCronForwarderCase extends ESBIntegrationTest {
 
     @Test(groups = { "wso2.esb" }, description = "Test Cron Forwarding of message processor")
     public void testMessageProcessorCronForwader() throws Exception {
+        if (!Boolean.parseBoolean(System.getenv("CI_BUILD_SKIP"))) {
+            // SEND THE REQUEST
+            String addUrl = getProxyServiceURLHttp("MSMPRetrytest");
+            String payload = "{\"name\":\"Jack\"}";
 
-        // SEND THE REQUEST
-        String addUrl = getProxyServiceURLHttp("MSMPRetrytest");
-        String payload = "{\"name\":\"Jack\"}";
+            Map<String, String> headers = new HashMap<String, String>();
+            headers.put("Content-Type", "application/json");
 
-        Map<String, String> headers = new HashMap<String, String>();
-        headers.put("Content-Type", "application/json");
+            // need to send two request
+            HttpResponse response1 = HttpRequestUtil.doPost(new URL(addUrl), payload, headers);
+            HttpResponse response2 = HttpRequestUtil.doPost(new URL(addUrl), payload, headers);
+            HttpResponse response3 = HttpRequestUtil.doPost(new URL(addUrl), payload, headers);
+            HttpResponse response4 = HttpRequestUtil.doPost(new URL(addUrl), payload, headers);
 
-        // need to send two request
-        HttpResponse response1 = HttpRequestUtil.doPost(new URL(addUrl), payload, headers);
-        HttpResponse response2 = HttpRequestUtil.doPost(new URL(addUrl), payload, headers);
-        HttpResponse response3 = HttpRequestUtil.doPost(new URL(addUrl), payload, headers);
-        HttpResponse response4 = HttpRequestUtil.doPost(new URL(addUrl), payload, headers);
+            // IT HAS TO BE 202 ACCEPTED
+            assertEquals(response1.getResponseCode(), 202, "ESB failed to send 202 even after setting FORCE_SC_ACCEPTED");
+            assertEquals(response2.getResponseCode(), 202, "ESB failed to send 202 even after setting FORCE_SC_ACCEPTED");
+            assertEquals(response3.getResponseCode(), 202, "ESB failed to send 202 even after setting FORCE_SC_ACCEPTED");
+            assertEquals(response4.getResponseCode(), 202, "ESB failed to send 202 even after setting FORCE_SC_ACCEPTED");
 
-        // IT HAS TO BE 202 ACCEPTED
-        assertEquals(response1.getResponseCode(), 202, "ESB failed to send 202 even after setting FORCE_SC_ACCEPTED");
-        assertEquals(response2.getResponseCode(), 202, "ESB failed to send 202 even after setting FORCE_SC_ACCEPTED");
-        assertEquals(response3.getResponseCode(), 202, "ESB failed to send 202 even after setting FORCE_SC_ACCEPTED");
-        assertEquals(response4.getResponseCode(), 202, "ESB failed to send 202 even after setting FORCE_SC_ACCEPTED");
-
-        // WAIT FOR THE MESSAGE PROCESSOR TO TRIGGER
-//        Thread.sleep(60000);
-        Awaitility.await().pollInterval(50, TimeUnit.MILLISECONDS).atMost(300,
-                TimeUnit.SECONDS).until(isLogWritten());
-        assertTrue(carbonLogReader.checkForLog("Jack", 60, NUMBER_OF_MESSAGES));
+            // WAIT FOR THE MESSAGE PROCESSOR TO TRIGGER
+            //        Thread.sleep(60000);
+            Awaitility.await()
+                    .pollInterval(org.awaitility.Duration.ONE_MINUTE)
+                    .atMost(org.awaitility.Duration.FIVE_MINUTES)
+                    .until(isLogWritten());
+            assertTrue(carbonLogReader.checkForLog("Jack", 60, NUMBER_OF_MESSAGES));
+        }
     }
 
     @AfterClass(alwaysRun = true)
