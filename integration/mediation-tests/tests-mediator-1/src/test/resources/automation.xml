@@ -274,7 +274,7 @@
 
                     <parameter name="startupScript" value="micro-integrator"/>
                     <parameter name="-DgracefulShutdown" value="false"></parameter>
-                    <parameter name="-Djavax.net.debug" value="ssl:handshake"></parameter>
+                    <parameter name="-Djavax.net.debug" value="ssl:handshake:verbose"></parameter>
                     <!--<parameter name="cmdArg" value="debug 5005" />-->
                 </class>
                 <!--<class>
