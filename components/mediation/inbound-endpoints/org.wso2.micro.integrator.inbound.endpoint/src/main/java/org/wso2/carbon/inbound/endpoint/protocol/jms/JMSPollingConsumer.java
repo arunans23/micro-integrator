@@ -414,6 +414,9 @@ public class JMSPollingConsumer {
                 } else {
                     return msg;
                 }
+                if (destroyed) {
+                    break;
+                }
                 msg = receiveMessage(messageConsumer);
             }
 
@@ -722,6 +725,11 @@ public class JMSPollingConsumer {
                 }
             }
         }
+    }
+
+    public void stopPolling() {
+        logger.info("JMS PollingConsumer stopped hence polling is stopped for Inbound Endpoint: " + name);
+        destroyed = true;
     }
 
     public void enablePolling() {

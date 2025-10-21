@@ -1078,6 +1078,11 @@
                 <version>${commons-lang3.orbit.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.wso2.carbon.deployment</groupId>
                 <artifactId>org.wso2.carbon.service.mgt.feature</artifactId>
                 <type>zip</type>
@@ -1343,6 +1348,16 @@
                 <groupId>com.fasterxml.jackson.datatype</groupId>
                 <artifactId>jackson-datatype-jsr310</artifactId>
                 <version>${fasterxml.jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jdk8</artifactId>
+                <version>${fasterxml.jackson.datatype.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hubspot.immutables</groupId>
+                <artifactId>immutables-exceptions</artifactId>
+                <version>${com.hubspot.immutables.version}</version>
             </dependency>
             <!-- End of OAS 3 feature dependencies-->
             <dependency>
@@ -1642,14 +1657,14 @@
         <carbon.p2.plugin.version>5.1.2</carbon.p2.plugin.version>
 
         <!-- Carbon kernel version-->
-        <carbon.kernel.version>4.9.28</carbon.kernel.version>
+        <carbon.kernel.version>4.9.30</carbon.kernel.version>
         <carbon.kernel.imp.pkg.version>[4.5.0,5.0.0)</carbon.kernel.imp.pkg.version>
         <version.jaxb.api>2.4.0-b180830.0359</version.jaxb.api>
         <com.sun.jaxb.version>2.3.0</com.sun.jaxb.version>
         <com.sun.jaxb.impl.version>2.3.1</com.sun.jaxb.impl.version>
-        <synapse.version>4.0.0-wso2v252</synapse.version>
+        <synapse.version>4.0.0-wso2v267</synapse.version>
         <imp.pkg.version.synapse>[4.0.0, 4.0.1)</imp.pkg.version.synapse>
-        <carbon.mediation.version>4.7.260</carbon.mediation.version>
+        <carbon.mediation.version>4.7.265</carbon.mediation.version>
         <carbon.crypto.version>1.1.3</carbon.crypto.version>
         <carbon.crypto.api.imp.pkg.version.range>[1.1.0,1.2.0)</carbon.crypto.api.imp.pkg.version.range>
         <carbon.data.version>4.5.2</carbon.data.version>
@@ -1662,15 +1677,15 @@
         <sap-adapter.feature.version>4.7.36</sap-adapter.feature.version>
 
         <cipher.tool.version>1.2.6</cipher.tool.version>
-        <axis2.transport.version>2.0.0-wso2v75</axis2.transport.version>
-        <transport.http.netty.version>6.3.54</transport.http.netty.version>
+        <axis2.transport.version>2.0.0-wso2v78</axis2.transport.version>
+        <transport.http.netty.version>6.3.56</transport.http.netty.version>
 
         <esotericsoftware.kryo.version>3.0.3</esotericsoftware.kryo.version>
         <esotericsoftware.minlog.version>1.3.0</esotericsoftware.minlog.version>
         <org.objenesis.version>2.1</org.objenesis.version>
 
         <!-- Apache Axis2 -->
-        <axis2.wso2.version>1.6.1-wso2v108</axis2.wso2.version>
+        <axis2.wso2.version>1.6.1-wso2v113</axis2.wso2.version>
         <!-- Please unify axis2 versions in future -->
         <axis2.wso2.integration.test.version>1.6.1-wso2v105</axis2.wso2.integration.test.version>
         <imp.pkg.version.axis2>[1.6.1, 1.7.0)</imp.pkg.version.axis2>
@@ -1678,11 +1693,13 @@
         <carbon.analytics.common.version>5.2.64</carbon.analytics.common.version>
         <carbon.analytics.common.imp.pkg.version>[5.2.0, 6.0.0)</carbon.analytics.common.imp.pkg.version>
         <fasterxml.jackson.version>2.16.1</fasterxml.jackson.version>
+        <fasterxml.jackson.datatype.version>2.20.0</fasterxml.jackson.datatype.version>
+        <com.hubspot.immutables.version>1.11.2</com.hubspot.immutables.version>
         <carbon.commons.version>4.7.55</carbon.commons.version>
         <carbon.rule.version>4.5.3</carbon.rule.version>
         <carbon.deployment.version>4.9.11</carbon.deployment.version>
         <wss4j.version>1.6.0-wso2v6</wss4j.version>
-        <rampart.wso2.version>1.7.0-wso2v1</rampart.wso2.version>
+        <rampart.wso2.version>1.7.0-wso2v7</rampart.wso2.version>
         <siddhi.version>3.2.3</siddhi.version>
         <opensaml.orbit.version>3.3.1.wso2v14</opensaml.orbit.version>
         <saml.common.util.version>1.0.10</saml.common.util.version>
@@ -1690,11 +1707,11 @@
         <xmlsec.version>1.5.6-wso2v2</xmlsec.version>
         <jsonassert.version>1.5.1</jsonassert.version>
         <saml.common.util.version.range>[1.0.0,2.0.0)</saml.common.util.version.range>
-        <bouncycastle.orbit.version>1.78.1.wso2v1</bouncycastle.orbit.version>
+        <bouncycastle.orbit.version>1.81.0.wso2v1</bouncycastle.orbit.version>
         <orbit.version.poi.ooxml>5.3.0.wso2v1</orbit.version.poi.ooxml>
         <org.wso2.json.version>3.0.0.wso2v4</org.wso2.json.version>
         <version.equinox.http.servlet>1.1.400.v20130418-1354</version.equinox.http.servlet>
-        <version.tomcat>9.0.109</version.tomcat>
+        <version.tomcat>9.0.110</version.tomcat>
         <orbit.version.tomcat.jsp.api>${version.tomcat}.wso2v1</orbit.version.tomcat.jsp.api>
         <orbit.version.tomcat.el.api>${version.tomcat}.wso2v1</orbit.version.tomcat.el.api>
         <orbit.version.tomcat.servlet.api>${version.tomcat}.wso2v1</orbit.version.tomcat.servlet.api>
@@ -1711,7 +1728,7 @@
         <orbit.version.tiles>2.0.5.wso2v1</orbit.version.tiles>
         <version.ant>1.7.0.wso2v1</version.ant>
         <version.xmlbeans>3.1.0</version.xmlbeans>
-        <orbit.version.axiom>1.2.11-wso2v29</orbit.version.axiom>
+        <orbit.version.axiom>1.2.11-wso2v30</orbit.version.axiom>
         <neethi.osgi.version>2.0.4.wso2v5</neethi.osgi.version>
         <version.woden>1.0.0.M9-wso2v1</version.woden>
         <orbit.version.wsdl4j>1.6.2.wso2v4</orbit.version.wsdl4j>
@@ -1745,6 +1762,7 @@
         <maven.dependency.plugin.version>3.1.1</maven.dependency.plugin.version>
         <commons-text.orbit.version>1.13.1.wso2v1</commons-text.orbit.version>
         <commons-lang3.orbit.version>3.18.0.wso2v1</commons-lang3.orbit.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
         <joda-time.version>2.9.4.wso2v1</joda-time.version>
         <libthrift.version>0.16.0.wso2v1</libthrift.version>
         <axis2.mar.maven.plugin>1.5.2</axis2.mar.maven.plugin>
@@ -1787,7 +1805,7 @@
         <diagnostics.tool.version>1.1.1</diagnostics.tool.version>
         <jsch.version>0.2.24</jsch.version>
 
-        <config.mapper.version>1.0.20</config.mapper.version>
+        <config.mapper.version>1.0.26</config.mapper.version>
         <javax.xml.parsers.import.pkg.version>[0.0.0, 1.0.0)</javax.xml.parsers.import.pkg.version>
         <imp.pkg.version.javax.servlet>[2.6.0, 3.0.0)</imp.pkg.version.javax.servlet>
         <import.package.version.commons.logging>[1.2.0,2.0.0)</import.package.version.commons.logging>

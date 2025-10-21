@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.inbound.endpoint.protocol.mqtt;
 
+import org.apache.axis2.util.GracefulShutdownTimer;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.inbound.InboundProcessorParams;
@@ -26,10 +27,12 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.wso2.carbon.inbound.endpoint.common.InboundOneTimeTriggerRequestProcessor;
 import org.wso2.carbon.inbound.endpoint.protocol.PollingConstants;
+import org.wso2.carbon.inbound.endpoint.protocol.Utils;
 
 import java.util.Properties;
 import javax.net.ssl.SSLSocketFactory;
 
+import static org.wso2.carbon.inbound.endpoint.common.Constants.DEFAULT_GRACEFUL_SHUTDOWN_POLL_INTERVAL_MS;
 import static org.wso2.carbon.inbound.endpoint.common.Constants.SUPER_TENANT_ID;
 
 /**
@@ -123,33 +126,41 @@ public class MqttListener extends InboundOneTimeTriggerRequestProcessor {
     public void destroy(boolean removeTask) {
         log.info("Mqtt Inbound endpoint: " + name + " Started destroying context.");
         MqttClientManager clientManager = MqttClientManager.getInstance();
-        String inboundIdentifier = clientManager
-                .buildIdentifier(mqttAsyncClient.getClientId(), confac.getServerHost(), confac.getServerPort());
-        //we should ignore the case of manually loading of tenant
-        //we maintain a flag for cases where we load the tenant manually
-        if (!clientManager.isInboundTenantLoadingFlagSet(inboundIdentifier)) {
-            //release the thread from suspension
-            //this will release thread suspended thread for completion
-            connectionConsumer.shutdown();
-            mqttAsyncCallback.shutdown();
-            confac.shutdown(mqttAsyncClient.isConnected());
-            try {
-                if (mqttAsyncClient.isConnected()) {
-                    mqttAsyncClient.unsubscribe(confac.getTopic());
-                    mqttAsyncClient.disconnect();
-                }
-                mqttAsyncClient.close();
 
-                String nameIdentifier = clientManager.buildNameIdentifier(name, String.valueOf(SUPER_TENANT_ID));
-                //here we unregister it because this is not a case of tenant loading
-                MqttClientManager.getInstance().unregisterMqttClient(inboundIdentifier, nameIdentifier);
-
-                log.info("Disconnected from the remote MQTT server.");
-            } catch (MqttException e) {
-                log.error("Error while disconnecting from the remote server.");
+        //release the thread from suspension
+        //this will release thread suspended thread for completion
+        connectionConsumer.shutdown();
+        mqttAsyncCallback.shutdown();
+        confac.shutdown(mqttAsyncClient.isConnected());
+        try {
+            if (mqttAsyncClient.isConnected()) {
+                mqttAsyncClient.unsubscribe(confac.getTopic());
+                mqttAsyncClient.disconnect();
             }
+            mqttAsyncClient.close();
+
+            String inboundIdentifier = clientManager
+                    .buildIdentifier(mqttAsyncClient.getClientId(), confac.getServerHost(), confac.getServerPort());
+            String nameIdentifier = clientManager.buildNameIdentifier(name, String.valueOf(SUPER_TENANT_ID));
+            //here we unregister it because this is not a case of tenant loading
+            MqttClientManager.getInstance().unregisterMqttClient(inboundIdentifier, nameIdentifier);
+
+            log.info("Disconnected from the remote MQTT server.");
+        } catch (MqttException e) {
+            log.error("Error while disconnecting from the remote server.");
         }
         super.destroy(removeTask);
+
+        GracefulShutdownTimer gracefulShutdownTimer = GracefulShutdownTimer.getInstance();
+        if (gracefulShutdownTimer.isStarted()) {
+            // Wait for in-flight messages to be processed before exiting from the destroy method
+
+            // Once the mqttAsyncClient is closed, no new messages will arrive and hence the in-flight messages
+            // count would not be incremented. So, here we only need to wait for already received in-flight messages
+            // to be processed.
+            Utils.waitForGracefulTaskCompletion(gracefulShutdownTimer, mqttAsyncCallback.inFlightMessages, name,
+                    DEFAULT_GRACEFUL_SHUTDOWN_POLL_INTERVAL_MS);
+        }
     }
 
     @Override
@@ -234,4 +245,20 @@ public class MqttListener extends InboundOneTimeTriggerRequestProcessor {
         this.name = name;
     }
 
+    @Override
+    public void pause() {
+        try {
+            log.info("Disconnecting the MQTT Listener for inbound endpoint: " + name);
+            if (mqttAsyncClient != null && mqttAsyncClient.isConnected()) {
+                mqttAsyncClient.disconnect();
+                log.info("MQTT Listener for inbound endpoint: " + name + " disconnected from the remote server");
+                return;
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("MQTT Listener for inbound endpoint: " + name + " is not connected");
+            }
+        } catch (MqttException e) {
+            log.error("Error while disconnecting the MQTT listener", e);
+        }
+    }
 }

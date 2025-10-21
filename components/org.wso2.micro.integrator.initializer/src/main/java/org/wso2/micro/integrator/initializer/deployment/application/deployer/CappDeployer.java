@@ -29,10 +29,12 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.synapse.SynapseConstants;
 import org.apache.synapse.SynapseException;
 import org.apache.synapse.config.SynapseConfigUtils;
 import org.apache.synapse.config.SynapseConfiguration;
 import org.apache.synapse.api.API;
+import org.apache.synapse.config.SynapsePropertiesLoader;
 import org.wso2.carbon.securevault.SecretCallbackHandlerService;
 import org.wso2.micro.application.deployer.AppDeployerUtils;
 import org.wso2.micro.application.deployer.CarbonApplication;
@@ -42,6 +44,7 @@ import org.wso2.micro.application.deployer.handler.AppDeploymentHandler;
 import org.wso2.micro.core.CarbonAxisConfigurator;
 import org.wso2.micro.core.util.CarbonException;
 import org.wso2.micro.core.util.FileManipulator;
+import org.wso2.micro.integrator.initializer.deployment.DuplicateCAppDescriptorException;
 import org.wso2.micro.integrator.initializer.serviceCatalog.ServiceCatalogDeployer;
 import org.wso2.micro.integrator.initializer.utils.Constants;
 import org.wso2.micro.integrator.initializer.utils.DeployerUtil;
@@ -270,6 +273,7 @@ public class CappDeployer extends AbstractDeployer {
             if (e.getMessage() != null && e.getMessage().startsWith(REG_DEP_FAILURE_IDENTIFIER)){
                 handleDeployException(e, cAppName, currentApp);
             }
+            throw e;
         }
 
         // Initial execution of Service catalog Deployer at server startup when last CApp get deployed
@@ -541,7 +545,8 @@ public class CappDeployer extends AbstractDeployer {
                                     byte[] bytes = Files.readAllBytes(Paths.get(swaggerFile.getPath()));
                                     String artifactName = artifact.getName()
                                             .substring(0, artifact.getName().indexOf(SWAGGER_SUBSTRING));
-                                    if (parentApp.getAppConfig().isVersionedDeployment()) {
+                                    if (SynapsePropertiesLoader.getBooleanProperty(SynapseConstants.EXPOSE_VERSIONED_SERVICES, false)
+                                            && parentApp.getAppConfig().isVersionedDeployment()) {
                                         artifactName = artifact.getFullyQualifiedName()
                                                 .substring(0, artifact.getFullyQualifiedName().indexOf(SWAGGER_SUBSTRING));
                                     }
@@ -569,7 +574,8 @@ public class CappDeployer extends AbstractDeployer {
                     String apiName = getApiNameFromFile(new FileInputStream(apiXmlPath));
                     if (!StringUtils.isEmpty(apiName)) {
                         // Re-constructing swagger table with API name since artifact name is not unique
-                        if (parentApp.getAppConfig().isVersionedDeployment()) {
+                        if (SynapsePropertiesLoader.getBooleanProperty(SynapseConstants.EXPOSE_VERSIONED_SERVICES, false)
+                                && parentApp.getAppConfig().isVersionedDeployment()) {
                             apiName = parentApp.getAppConfig().getAppArtifactIdentifier() + Constants.DOUBLE_UNDERSCORE + apiName;
                             apiArtifactMap.put(artifact.getFullyQualifiedName(), apiName);
                         } else {
@@ -600,7 +606,8 @@ public class CappDeployer extends AbstractDeployer {
         for (String artifactName : swaggerTable.keySet()) {
             String apiname = apiArtifactMap.get(artifactName);
             if (!StringUtils.isEmpty(apiname)) {
-                synapseConfiguration.addSwaggerDefinition(apiname, swaggerTable.get(artifactName));
+                synapseConfiguration.addSwaggerDefinition(apiname, swaggerTable.get(artifactName),
+                        parentApp.getAppConfig().isVersionedDeployment());
             }
         }
     }
@@ -901,9 +908,11 @@ public class CappDeployer extends AbstractDeployer {
                     String name = dfd.getFile().getName();
                     return cAppOrderMap.getOrDefault(name, Integer.MAX_VALUE); // unknown files go last
                 }));
+            } catch (DuplicateCAppDescriptorException e) {
+                log.warn("Duplicate CApp descriptors found while determining the CApp processing order: " + e.getMessage());
             } catch (DeploymentException e) {
-                log.warn("Error while getting the CApp processing order according to dependencies. " +
-                                "CApps will be sorted alphabetically instead.", e);
+                log.warn("Unable to determine the CApp processing order based on dependencies. " +
+                                "CApps will be deployed in alphabetical order instead. " + e.getMessage());
                 super.sort(filesToDeploy, startIndex, toIndex);
             }
         }
