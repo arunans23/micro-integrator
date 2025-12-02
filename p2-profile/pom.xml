@@ -33,36 +33,37 @@
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <inherited>false</inherited>
-                <executions>
-                    <execution>
-                        <id>2-unpack-equinox-executable</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>unpack</goal>
-                        </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>org.eclipse.equinox</groupId>
-                                    <artifactId>org.eclipse.equinox.executable</artifactId>
-                                    <version>3.5.0.v20110530-7P7NFUFFLWUl76mart</version>
-                                    <type>zip</type>
-                                    <overWrite>false</overWrite>
-                                    <outputDirectory>target</outputDirectory>
-                                </artifactItem>
-                            </artifactItems>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+<!--            <plugin>-->
+<!--                <groupId>org.apache.maven.plugins</groupId>-->
+<!--                <artifactId>maven-dependency-plugin</artifactId>-->
+<!--                <inherited>false</inherited>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <id>2-unpack-equinox-executable</id>-->
+<!--                        <phase>test</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>unpack</goal>-->
+<!--                        </goals>-->
+<!--                        <configuration>-->
+<!--                            <artifactItems>-->
+<!--                                <artifactItem>-->
+<!--                                    <groupId>org.eclipse.equinox</groupId>-->
+<!--                                    <artifactId>org.eclipse.equinox.executable</artifactId>-->
+<!--                                    <version>3.5.0.v20110530-7P7NFUFFLWUl76mart</version>-->
+<!--                                    <type>zip</type>-->
+<!--                                    <overWrite>false</overWrite>-->
+<!--                                    <outputDirectory>target</outputDirectory>-->
+<!--                                </artifactItem>-->
+<!--                            </artifactItems>-->
+<!--                        </configuration>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
             <plugin>
                 <groupId>org.wso2.maven</groupId>
                 <artifactId>carbon-p2-plugin</artifactId>
                 <version>${carbon.p2.plugin.version}</version>
+                <extensions>true</extensions>
                 <executions>
                     <execution>
                         <id>2-p2-repo-generation</id>
@@ -75,6 +76,7 @@
                             <artifactRepository>file:${basedir}/target/p2-repo</artifactRepository>
                             <publishArtifacts>true</publishArtifacts>
                             <publishArtifactRepository>true</publishArtifactRepository>
+                            <installIUs>true</installIUs>
                             <featureArtifacts>
 
                                 <featureArtifactDef>
@@ -351,10 +353,10 @@
                                     <id>org.wso2.carbon.databridge.datapublisher.feature.group</id>
                                     <version>${carbon.analytics.common.version}</version>
                                 </feature>
-                                <feature>
-                                    <id>org.wso2.micro.integrator.analytics.messageflow.data.publisher.feature.group</id>
-                                    <version>${project.version}</version>
-                                </feature>
+<!--                                <feature>-->
+<!--                                    <id>org.wso2.micro.integrator.analytics.messageflow.data.publisher.feature.group</id>-->
+<!--                                    <version>${project.version}</version>-->
+<!--                                </feature>-->
                                 <feature>
                                     <id>org.wso2.micro.integrator.observability.feature.group</id>
                                     <version>${project.version}</version>
@@ -365,10 +367,10 @@
                                     <id>org.apache.axis2.transport.jms.feature.group</id>
                                     <version>${axis2.transport.version}</version>
                                 </feature>
-                                <feature>
-                                    <id>org.apache.axis2.transport.mail.feature.group</id>
-                                    <version>${axis2.transport.version}</version>
-                                </feature>
+<!--                                <feature>-->
+<!--                                    <id>org.apache.axis2.transport.mail.feature.group</id>-->
+<!--                                    <version>${axis2.transport.version}</version>-->
+<!--                                </feature>-->
                                 <feature>
                                     <id>org.apache.axis2.transport.tcp.feature.group</id>
                                     <version>${axis2.transport.version}</version>
@@ -407,10 +409,10 @@
                                     <id>org.wso2.micro.integrator.security.server.feature.group</id>
                                     <version>${project.version}</version>
                                 </feature>
-                                <feature>
-                                    <id>org.wso2.micro.integrator.crypto.feature.group</id>
-                                    <version>${project.version}</version>
-                                </feature>
+<!--                                <feature>-->
+<!--                                    <id>org.wso2.micro.integrator.crypto.feature.group</id>-->
+<!--                                    <version>${project.version}</version>-->
+<!--                                </feature>-->
                                 <!-- DSS -->
                                 <feature>
                                     <id>org.wso2.micro.integrator.dataservices.server.feature.group</id>

@@ -17,10 +17,6 @@
  */
 package org.wso2.micro.integrator.security.user.core.internal;
 
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferenceCardinality;
-import org.osgi.service.component.annotations.ReferencePolicy;
 import org.wso2.micro.integrator.security.user.core.listener.AuthorizationManagerListener;
 import org.wso2.micro.integrator.security.user.core.listener.ClaimManagerListener;
 import org.wso2.micro.integrator.security.user.core.listener.UserManagementErrorEventListener;

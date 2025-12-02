@@ -20,7 +20,6 @@ package org.wso2.carbon.caching.impl;
 import org.apache.axis2.clustering.ClusteringAgent;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.wso2.carbon.base.api.ServerConfigurationService;
 
 import javax.cache.spi.AnnotationProvider;
 
@@ -32,7 +31,6 @@ public class DataHolder {
     private static DataHolder instance = new DataHolder();
 
     private DistributedMapProvider distributedMapProvider;
-    private ServerConfigurationService serverConfigurationService;
     private ClusteringAgent clusteringAgent;
     private CachingProviderImpl cachingProvider = new CachingProviderImpl();
     private AnnotationProvider annotationProvider = new AnnotationProviderImpl();
@@ -48,14 +46,6 @@ public class DataHolder {
         return distributedMapProvider;
     }
 
-    public ServerConfigurationService getServerConfigurationService() {
-        if (this.serverConfigurationService == null) {
-            String msg = "Before activating javax caching  bundle, an instance of "
-                    + "ServerConfigurationService should be in existence";
-            log.error(msg);
-        }
-        return this.serverConfigurationService;
-    }
 
     public void setDistributedMapProvider(DistributedMapProvider distributedMapProvider) {
         this.distributedMapProvider = distributedMapProvider;
@@ -66,10 +56,6 @@ public class DataHolder {
         } catch (Exception e) {
             log.error("Cannot setDistributedMapProvider", e);
         }
-    }
-
-    public void setServerConfigurationService(ServerConfigurationService serverConfigurationService) {
-        this.serverConfigurationService = serverConfigurationService;
     }
 
     public void setClusteringAgent(ClusteringAgent clusteringAgent) {

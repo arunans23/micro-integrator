@@ -45,12 +45,6 @@ import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.cm.ConfigurationAdmin;
 import org.osgi.service.component.ComponentContext;
-import org.osgi.service.component.annotations.Activate;
-import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferenceCardinality;
-import org.osgi.service.component.annotations.ReferencePolicy;
 import org.wso2.carbon.securevault.SecretCallbackHandlerService;
 import org.wso2.config.mapper.ConfigParser;
 import org.wso2.micro.application.deployer.CarbonApplication;
@@ -91,7 +85,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 @SuppressWarnings({"JavaDoc", "UnusedDeclaration"})
-@Component(name = "org.wso2.micro.integrator.initializer.ServiceBusInitializer", immediate = true)
 public class ServiceBusInitializer {
 
     private static final Log log = LogFactory.getLog(ServiceBusInitializer.class);
@@ -114,7 +107,6 @@ public class ServiceBusInitializer {
 
     private DataSourceService dataSourceService;
 
-    @Activate
     protected void activate(ComponentContext ctxt) {
 
         if (log.isDebugEnabled()) {
@@ -285,7 +277,6 @@ public class ServiceBusInitializer {
         return capp.getMainSequence();
     }
 
-    @Deactivate
     protected void deactivate(ComponentContext ctxt) {
         List handlers = serverManager.getServerContextInformation().getSynapseEnvironment().getSynapseHandlers();
         Iterator<SynapseHandler> iterator = handlers.iterator();
@@ -441,12 +432,6 @@ public class ServiceBusInitializer {
         }
     }
 
-    @Reference(
-            name = "config.context.service",
-            service = Axis2ConfigurationContextService.class,
-            cardinality = ReferenceCardinality.MANDATORY,
-            policy = ReferencePolicy.DYNAMIC,
-            unbind = "unsetConfigurationContextService")
     protected void setConfigurationContextService(Axis2ConfigurationContextService configurationContextService) {
 
         if (log.isDebugEnabled()) {
@@ -465,12 +450,6 @@ public class ServiceBusInitializer {
         this.configCtxSvc = null;
     }
 
-    @Reference(
-            name = "org.wso2.micro.integrator.core.services.CarbonServerConfigurationService",
-            service = CarbonServerConfigurationService.class,
-            cardinality = ReferenceCardinality.MANDATORY,
-            policy = ReferencePolicy.DYNAMIC,
-            unbind = "unsetServerConfigurationService")
     protected void setServerConfigurationService(CarbonServerConfigurationService serverConfigurationService) {
         ConfigurationHolder.getInstance().setCarbonServerConfigurationService(serverConfigurationService);
     }
@@ -479,12 +458,6 @@ public class ServiceBusInitializer {
         //nothing to do here since we put this reference to populate the ConfigurationHolder
     }
 
-    @Reference(
-            name = "secret.callback.handler.service",
-            service = org.wso2.carbon.securevault.SecretCallbackHandlerService.class,
-            cardinality = ReferenceCardinality.MANDATORY,
-            policy = ReferencePolicy.DYNAMIC,
-            unbind = "unsetSecretCallbackHandlerService")
     protected void setSecretCallbackHandlerService(SecretCallbackHandlerService secretCallbackHandlerService) {
 
         if (log.isDebugEnabled()) {
@@ -597,12 +570,6 @@ public class ServiceBusInitializer {
 
     }*/
 
-    @Reference(
-            name = "org.wso2.micro.integrator.ntask.core.service.TaskService",
-            service = org.wso2.micro.integrator.ntask.core.service.TaskService.class,
-            cardinality = ReferenceCardinality.MANDATORY,
-            policy = ReferencePolicy.DYNAMIC,
-            unbind = "unsetTaskService")
     protected void setTaskService(TaskService taskService) {
 
         log.debug("Set Task Service");
@@ -614,11 +581,6 @@ public class ServiceBusInitializer {
         this.taskService = null;
     }
 
-    @Reference(name = "osgi.configadmin.service",
-            service = ConfigurationAdmin.class,
-            unbind = "unsetConfigAdminService",
-            cardinality = ReferenceCardinality.MANDATORY,
-            policy = ReferencePolicy.DYNAMIC)
     public void setConfigAdminService(ConfigurationAdmin configAdminService) {
         log.debug("Setting ConfigurationAdmin Service");
         ConfigurationHolder.getInstance().setConfigAdminService(configAdminService);
@@ -628,11 +590,6 @@ public class ServiceBusInitializer {
         log.debug("Unsetting ConfigurationAdmin Service");
     }
 
-    @Reference(name = "org.wso2.carbon.ndatasource",
-               service = DataSourceService.class,
-               cardinality = ReferenceCardinality.MANDATORY,
-               policy = ReferencePolicy.DYNAMIC,
-               unbind = "unsetDatasourceHandlerService")
     protected void setDatasourceHandlerService(DataSourceService dataSourceService) {
         this.dataSourceService = dataSourceService;
     }

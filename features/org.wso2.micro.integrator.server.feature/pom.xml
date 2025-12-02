@@ -37,6 +37,58 @@
             <groupId>org.wso2.ei</groupId>
             <artifactId>org.wso2.micro.integrator.core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.component</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.util.promise</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.util.function</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.cm</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.upnp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.device</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.event</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.wireadmin</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.provisioning</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.useradmin</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.metatype</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.service.permissionadmin</artifactId>
+        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.osgi</groupId>-->
+<!--            <artifactId>org.osgi.service.http.whiteboard</artifactId>-->
+<!--        </dependency>-->
     </dependencies>
 
     <build>
@@ -60,6 +112,7 @@
                 <groupId>org.wso2.maven</groupId>
                 <artifactId>carbon-p2-plugin</artifactId>
                 <version>${carbon.p2.plugin.version}</version>
+                <extensions>true</extensions>
                 <executions>
                     <execution>
                         <id>p2-feature-generation</id>
@@ -114,6 +167,10 @@
                                 <bundleDef>
                                     org.wso2.orbit.sun.xml.ws:jaxws-ri:${org.wso2.orbit.sun.xml.ws.version}
                                 </bundleDef>
+
+<!--                                <bundleDef>-->
+<!--                                    org.eclipse.platform:org.eclipse.equinox.http.servlet:${version.equinox.http.servlet}-->
+<!--                                </bundleDef>-->
 
 <!--                                <bundleDef>-->
 <!--                                    org.eclipse.equinox:org.eclipse.equinox.http.servlet:${version.equinox.http.servlet}-->
@@ -212,8 +269,9 @@
                                 <bundleDef>
                                     org.wso2.orbit.javax.activation:activation:${version.org.wso2.orbit.javax.activation}
                                 </bundleDef>
+                                <bundleDef>javax.xml.soap:javax.xml.soap-api:1.4.0</bundleDef>
                                 <bundleDef>
-                                    javax.annotation:javax.annotation-api:${verion.javax.annotation.annotation-api}
+                                    javax.annotation:javax.annotation-api:${version.javax.annotation.annotation-api}
                                 </bundleDef>
                                 <bundleDef>
                                     org.wso2.orbit.javax.transaction:jta:${version.org.wso2.orbit.javax.jta}
@@ -222,7 +280,7 @@
                                     org.wso2.orbit.javax.xml.bind:jaxb-api:${org.wso2.orbit.javax.xml.bind.version}
                                 </bundleDef>
 
-                                <bundleDef>org.wso2.carbon:org.wso2.carbon.securevault:${carbon.kernel.version}
+                                <bundleDef>org.wso2.carbon:org.wso2.carbon.securevault:4.9.34-SNAPSHOT
                                 </bundleDef>
 <!--                                <bundleDef>org.wso2.carbon:org.wso2.carbon.core.common:${carbon.kernel.version}-->
 <!--                                </bundleDef>-->
@@ -285,6 +343,20 @@
                                 <bundleDef>org.wso2.ei:javax.cache.wso2:${project.version}</bundleDef>
                                 <bundleDef>org.wso2.orbit.io.grpc:grpc-context:${grpc-context.orbit.version}</bundleDef>
                                 <bundleDef>org.wso2.orbit.io.opencensus:opencensus:${opencensus.orbit.version}</bundleDef>
+                                <bundleDef>org.apache.felix:org.apache.felix.scr:2.1.30</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.component</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.util.promise</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.util.function</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.cm</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.upnp</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.device</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.event</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.wireadmin</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.provisioning</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.useradmin</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.metatype</bundleDef>
+                                <bundleDef>org.osgi:org.osgi.service.permissionadmin</bundleDef>
+<!--                                <bundleDef>org.osgi:org.osgi.service.http.whiteboard</bundleDef>-->
                             </bundles>
 
                             <importFeatures>

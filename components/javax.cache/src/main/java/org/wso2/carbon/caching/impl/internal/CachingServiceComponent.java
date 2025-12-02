@@ -27,7 +27,6 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.framework.BundleContext;
-import org.wso2.carbon.base.api.ServerConfigurationService;
 import org.wso2.carbon.caching.impl.DataHolder;
 import org.wso2.carbon.caching.impl.DistributedMapProvider;
 import org.wso2.carbon.caching.impl.CachingAxisConfigurationObserver;
@@ -64,16 +63,6 @@ public class CachingServiceComponent {
 
     protected void unsetDistributedMapProvider(DistributedMapProvider mapProvider) {
         dataHolder.setDistributedMapProvider(null);
-    }
-
-    @Reference(name = "server.configuration.service", cardinality = ReferenceCardinality.MANDATORY, policy = ReferencePolicy.DYNAMIC, 
-            unbind = "unsetServerConfigurationService")
-    protected void setServerConfigurationService(ServerConfigurationService serverConfigurationService) {
-        dataHolder.setServerConfigurationService(serverConfigurationService);
-    }
-
-    protected void unsetServerConfigurationService(ServerConfigurationService serverConfigurationService) {
-        dataHolder.setServerConfigurationService(null);
     }
 
     @Reference(name = "config.context.service", cardinality = ReferenceCardinality.OPTIONAL, policy = ReferencePolicy.DYNAMIC, 
