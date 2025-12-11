@@ -33,7 +33,7 @@ import org.wso2.micro.integrator.dataservices.core.engine.DataService;
 import javax.sql.DataSource;
 import javax.sql.XAConnection;
 import javax.sql.XADataSource;
-import javax.transaction.Transaction;
+//import javax.transaction.Transaction;
 import javax.transaction.xa.XAResource;
 import javax.xml.stream.XMLStreamException;
 import java.sql.Connection;
@@ -193,16 +193,16 @@ public abstract class SQLConfig extends Config {
                 XAConnection xac = ((XADataSource) tds).getXAConnection();
                 if (xac != null) {
                     try {
-                        Transaction tx = this.getDataService().getDSSTxManager().
-                                getTransactionManager().getTransaction();
-                        /* add only if there is a transaction */
-                        if (tx != null) {
-                            XAResource xaResource = ((XAConnection) conn).getXAResource();
-                            if (!isXAResourceEnlisted(xaResource)) {
-                                tx.enlistResource(xaResource);
-                                addToEnlistedXADataSources(xaResource);
-                            }
-                        }
+//                        Transaction tx = this.getDataService().getDSSTxManager().
+//                                getTransactionManager().getTransaction();
+//                        /* add only if there is a transaction */
+//                        if (tx != null) {
+//                            XAResource xaResource = ((XAConnection) conn).getXAResource();
+//                            if (!isXAResourceEnlisted(xaResource)) {
+//                                tx.enlistResource(xaResource);
+//                                addToEnlistedXADataSources(xaResource);
+//                            }
+//                        }
                     } catch (IllegalStateException e) {
                         // ignore: can be because we are trying to enlist again
                     } catch (Exception e) {

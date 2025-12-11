@@ -51,8 +51,8 @@
             <artifactId>org.eclipse.osgi</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.wso2.carbon</groupId>
-            <artifactId>org.wso2.carbon.utils</artifactId>
+            <groupId>org.wso2.ei</groupId>
+            <artifactId>org.wso2.micro.integrator.utils</artifactId>
         </dependency>
         <dependency>
             <groupId>org.wso2.org.ops4j.pax.logging</groupId>
@@ -100,6 +100,7 @@
                             javax.transaction.*,
                             *;resolution:=optional
                         </Import-Package>
+<!--                        <_nouses>true</_nouses>-->
                     </instructions>
                 </configuration>
             </plugin>

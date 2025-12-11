@@ -222,6 +222,7 @@
                         <Fragment-Host>
                             synapse-core
                         </Fragment-Host>
+<!--                        <_nouses>true</_nouses>-->
                     </instructions>
                 </configuration>
             </plugin>

@@ -20,7 +20,7 @@ package org.wso2.carbon.caching.impl;
 import org.apache.axis2.context.ConfigurationContext;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.wso2.carbon.utils.Axis2ConfigurationContextObserver;
+import org.wso2.micro.core.util.Axis2ConfigurationContextObserver;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
 import javax.cache.Caching;

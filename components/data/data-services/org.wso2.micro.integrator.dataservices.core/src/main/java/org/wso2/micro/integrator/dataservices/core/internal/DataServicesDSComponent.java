@@ -33,7 +33,7 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import org.wso2.micro.integrator.dataservices.core.DataServiceFault;
 import org.wso2.micro.integrator.dataservices.core.description.event.EventTrigger;
 import org.wso2.micro.integrator.ndatasource.core.DataSourceService;
-import org.wso2.carbon.securevault.SecretCallbackHandlerService;
+import org.wso2.micro.integrator.core.services.SecretCallbackHandlerService;
 import org.wso2.micro.core.util.Axis2ConfigurationContextObserver;
 import org.wso2.micro.core.util.ConfigurationContextService;
 
@@ -131,7 +131,7 @@ public class DataServicesDSComponent {
 
     @Reference(
             name = "secret.callback.handler.service",
-            service = org.wso2.carbon.securevault.SecretCallbackHandlerService.class,
+            service = org.wso2.micro.integrator.core.services.SecretCallbackHandlerService.class,
             cardinality = ReferenceCardinality.MANDATORY,
             policy = ReferencePolicy.DYNAMIC,
             unbind = "unsetSecretCallbackHandlerService")

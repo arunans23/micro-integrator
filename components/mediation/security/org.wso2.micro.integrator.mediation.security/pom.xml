@@ -75,6 +75,7 @@
                             org.osgi.service.component.*;version="${imp.package.version.osgi.services}"
                         </Import-Package>
                         <DynamicImport-Package>*</DynamicImport-Package>
+<!--                        <_nouses>true</_nouses>-->
                     </instructions>
                 </configuration>
             </plugin>

@@ -24,7 +24,7 @@ import org.apache.commons.logging.LogFactory;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
-import org.wso2.carbon.crypto.api.ExternalCryptoProvider;
+//import org.wso2.carbon.crypto.api.ExternalCryptoProvider;
 import org.wso2.micro.core.encryption.KeyStoreBasedExternalCryptoProvider;
 import org.wso2.micro.core.util.CoreServerInitializerHolder;
 import org.wso2.micro.integrator.core.UserStoreTemporaryService;
@@ -130,7 +130,7 @@ public class Activator implements BundleActivator {
                                                      null);
 
         // Register the external crypto provider which is based on Carbon keystore management service.
-        bundleContext.registerService(ExternalCryptoProvider.class, new KeyStoreBasedExternalCryptoProvider(), null);
+//        bundleContext.registerService(ExternalCryptoProvider.class, new KeyStoreBasedExternalCryptoProvider(), null);
 
         CarbonCoreDataHolder.getInstance().setServerConfigurationService(carbonServerConfiguration);
         CarbonCoreDataHolder.getInstance().setBundleContext(bundleContext);

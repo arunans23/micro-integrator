@@ -68,6 +68,7 @@
                             !org.wso2.micro.integrator.crypto.provider.internal,
                             org.wso2.micro.integrator.crypto.provider.*;version="${project.version}",
                         </Export-Package>
+<!--                        <_nouses>true</_nouses>-->
                     </instructions>
                 </configuration>
             </plugin>

@@ -259,6 +259,22 @@
             <groupId>de.undercouch</groupId>
             <artifactId>bson4jackson</artifactId>
         </dependency>
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.platform</groupId>
+            <artifactId>org.eclipse.osgi.services</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.eclipse.jetty.toolchain</groupId>
+                    <artifactId>jetty-servlet</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 
     <build>
@@ -319,7 +335,7 @@
                         </Export-Package>
                         <Import-Package>
                             !org.wso2.micro.integrator.dataservices.core.*,
-                            javax.servlet.http;version="${javax.servlet.imp.pkg.version}",
+                            jakarta.servlet.*=6.0.0,
                             com.google.gdata.client;version="${gdata-core.orbit.imp.pkg.version}",
                             com.google.gdata.data;version="${gdata-core.orbit.imp.pkg.version}",
                             com.google.gdata.client.spreadsheet;version="${gdata-spreadsheet.orbit.imp.pkg.version}",
@@ -418,10 +434,10 @@
                 </configuration>
             </plugin>
 
-            <plugin>
-                <groupId>org.apache.felix</groupId>
-                <artifactId>maven-scr-plugin</artifactId>
-            </plugin>
+<!--            <plugin>-->
+<!--                <groupId>org.apache.felix</groupId>-->
+<!--                <artifactId>maven-scr-plugin</artifactId>-->
+<!--            </plugin>-->
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
