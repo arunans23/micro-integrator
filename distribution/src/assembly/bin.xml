@@ -137,6 +137,7 @@
                 </exclude>
                 <exclude>**/repository/components/plugins/jsch_0.1.49.wso2v1.jar</exclude>
                 <exclude>**/repository/resources/conf/**</exclude>
+                <exclude>**/repository/resources/security/**</exclude>
             </excludes>
         </fileSet>
 

@@ -75,12 +75,12 @@ public class HttpsServiceViaHttpProxyTestCase extends ESBIntegrationTest {
                     currentLine = currentLine.replace("REPLACE_CK",
                             System.getProperty(ServerConstants.CARBON_HOME) + File.separator + "repository"
                                     + File.separator + "resources" + File.separator + "security" + File.separator
-                                    + "wso2carbon.jks");
+                                    + "wso2carbon.p12");
                 } else if (currentLine.contains("REPLACE_TS")) {
                     currentLine = currentLine.replace("REPLACE_TS",
                             System.getProperty(ServerConstants.CARBON_HOME) + File.separator + "repository"
                                     + File.separator + "resources" + File.separator + "security" + File.separator
-                                    + "client-truststore.jks");
+                                    + "client-truststore.p12");
                 }
                 sb.append(currentLine);
             }

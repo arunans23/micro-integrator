@@ -30,7 +30,7 @@ public class Constants {
     public static final String KEYSTORE_PATH =
             System.getProperty(ServerConstants.CARBON_HOME) + File.separator + "repository" + File.separator +
                     "resources" + File.separator +
-                    "security" + File.separator + "wso2carbon.jks";
+                    "security" + File.separator + "wso2carbon.p12";
 
     public static final int HTTP_BACKEND_PORT = 7000;
     public static final int HTTPS_BACKEND_PORT = 7443;

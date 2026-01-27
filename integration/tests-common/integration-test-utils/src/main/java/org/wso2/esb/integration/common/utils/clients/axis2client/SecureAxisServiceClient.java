@@ -247,7 +247,7 @@ public class SecureAxisServiceClient implements CallbackHandler {
             sigCryptoConfig.setProvider("org.apache.ws.security.components.crypto.Merlin");
 
             Properties prop1 = new Properties();
-            prop1.put("org.apache.ws.security.crypto.merlin.keystore.type", "JKS");
+            prop1.put("org.apache.ws.security.crypto.merlin.keystore.type", "PKCS12");
             prop1.put("org.apache.ws.security.crypto.merlin.file", keyStorePath);
             prop1.put("org.apache.ws.security.crypto.merlin.keystore.password", keyStorePassword);
 
@@ -258,7 +258,7 @@ public class SecureAxisServiceClient implements CallbackHandler {
 
             Properties prop2 = new Properties();
 
-            prop2.put("org.apache.ws.security.crypto.merlin.keystore.type", "JKS");
+            prop2.put("org.apache.ws.security.crypto.merlin.keystore.type", "PKCS12");
             prop2.put("org.apache.ws.security.crypto.merlin.file", keyStorePath);
             prop2.put("org.apache.ws.security.crypto.merlin.keystore.password", keyStorePassword);
 

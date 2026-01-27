@@ -97,10 +97,10 @@ public class ServiceCatalogTestCase extends ESBIntegrationTest {
         SSLContext sslContext = SSLContext.getInstance("TLS");
 
         File keystore = new File(CarbonBaseUtils.getCarbonHome() + File.separator + "repository" + File.separator +
-                "resources" + File.separator + "security" + File.separator + "wso2carbon.jks");
+                "resources" + File.separator + "security" + File.separator + "wso2carbon.p12");
 
         char[] password = "wso2carbon".toCharArray();
-        KeyStore ks = KeyStore.getInstance("JKS");
+        KeyStore ks = KeyStore.getInstance("PKCS12");
         FileInputStream fis = new FileInputStream(keystore);
         ks.load(fis, password);
 

@@ -151,7 +151,7 @@ public class ESBJAVA4569RabbiMQSSLStoreWithClientCertValidationTest extends ESBI
         kmf.init(ks, keyPassphrase);
 
         char[] trustPassphrase = "rabbitstore".toCharArray();
-        KeyStore tks = KeyStore.getInstance("JKS");
+        KeyStore tks = KeyStore.getInstance("PKCS12");
         tks.load(new FileInputStream(truststoreLocation), trustPassphrase);
 
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());

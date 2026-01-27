@@ -82,7 +82,7 @@ public abstract class SecureTCPClient extends Client {
     private SSLContext createSSLContext(String keyStorePath, String keyStorePassword, String keyPassword) {
 
         try {
-            KeyStore keyStore = KeyStore.getInstance("JKS");
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
 
             // Create key manager

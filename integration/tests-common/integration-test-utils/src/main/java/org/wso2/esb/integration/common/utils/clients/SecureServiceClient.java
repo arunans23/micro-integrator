@@ -58,7 +58,7 @@ public class SecureServiceClient {
         if (isTenant) {
             keyStorePath =
                     TestConfigurationProvider.getResourceLocation() + File.separator + "security" + File.separator
-                            + "keystore" + File.separator + "clients.jks";
+                            + "keystore" + File.separator + "clients.p12";
             userCertAlias = "clients";
             encryptionUser = "service";
             keyStorePassword = "automation";
@@ -66,7 +66,7 @@ public class SecureServiceClient {
         } else {
             keyStorePath =
                     TestConfigurationProvider.getResourceLocation() + "keystores" + File.separator
-                            + "products" + File.separator + "wso2carbon.jks";
+                            + "products" + File.separator + "wso2carbon.p12";
             userCertAlias = "wso2carbon";
             encryptionUser = "wso2carbon";
             keyStorePassword = "wso2carbon";

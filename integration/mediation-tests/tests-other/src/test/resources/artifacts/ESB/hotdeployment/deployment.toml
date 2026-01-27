@@ -6,16 +6,18 @@ hot_deployment = "false"
 type = "read_only_ldap"
 
 [keystore.primary]
-file_name = "repository/resources/security/wso2carbon.jks"
+file_name = "repository/resources/security/wso2carbon.p12"
 password = "wso2carbon"
 alias = "wso2carbon"
 key_password = "wso2carbon"
+type = "PKCS12"
 
 [truststore]
-file_name = "repository/resources/security/client-truststore.jks"
+file_name = "repository/resources/security/client-truststore.p12"
 password = "wso2carbon"
 alias = "symmetric.key.value"
 algorithm = "AES"
+type = "PKCS12"
 
 [management_api.jwt_token_security_handler]
 enable = false
