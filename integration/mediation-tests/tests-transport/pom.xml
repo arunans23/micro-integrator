@@ -211,7 +211,7 @@
                                         ${basedir}/target/tobeCopied/wso2mi-${project.version}/repository/resources/security/
                                     </directory>
                                     <includes>
-                                        <include>**/*.jks</include>
+                                        <include>**/*.p12</include>
                                     </includes>
                                 </resource>
                             </resources>
