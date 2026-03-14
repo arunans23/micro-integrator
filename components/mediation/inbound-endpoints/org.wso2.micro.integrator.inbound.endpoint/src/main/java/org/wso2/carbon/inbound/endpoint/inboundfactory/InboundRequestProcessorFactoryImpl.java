@@ -37,6 +37,7 @@ import org.wso2.carbon.inbound.endpoint.protocol.websocket.InboundWebsocketListe
 import org.wso2.carbon.inbound.endpoint.protocol.file.VFSProcessor;
 import org.wso2.carbon.inbound.endpoint.protocol.grpc.InboundGRPCListener;
 import org.wso2.carbon.inbound.endpoint.protocol.hl7.core.InboundHL7Listener;
+import org.wso2.carbon.inbound.endpoint.protocol.mcp.McpInboundListener;
 import org.wso2.carbon.inbound.endpoint.protocol.jms.JMSProcessor;
 
 /**
@@ -44,7 +45,7 @@ import org.wso2.carbon.inbound.endpoint.protocol.jms.JMSProcessor;
  */
 public class InboundRequestProcessorFactoryImpl implements InboundRequestProcessorFactory {
 
-    public static enum Protocols {jms, file, http, https, hl7, kafka, mqtt, rabbitmq, ws, wss, grpc, httpws, httpswss}
+    public static enum Protocols {jms, file, http, https, hl7, kafka, mqtt, rabbitmq, ws, wss, grpc, httpws, httpswss, mcp}
 
     /**
      * return underlying Request Processor Implementation according to protocol
@@ -96,6 +97,9 @@ public class InboundRequestProcessorFactoryImpl implements InboundRequestProcess
                     break;
                 case grpc:
                     inboundRequestProcessor = new InboundGRPCListener(params);
+                    break;
+                case mcp:
+                    inboundRequestProcessor = new McpInboundListener(params);
                     break;
             }
         } else if (params.getClassImpl() != null) {

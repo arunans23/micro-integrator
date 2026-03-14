@@ -90,6 +90,11 @@ public class EndpointListenerLoader {
                 HL7EndpointManager.getInstance().
                         startListener(port, inboundEndpointInfoDTO.getEndpointName(),
                                       inboundEndpointInfoDTO.getInboundParams());
+            } else if (inboundEndpointInfoDTO.getProtocol()
+                    .equals(InboundRequestProcessorFactoryImpl.Protocols.mcp.toString())) {
+                // MCP listeners self-start via McpInboundListener.init() which is called
+                // by the InboundEndpoint lifecycle after this loader runs.
+                // Nothing to do here — the shared PassThrough NIO reactor is already running.
             } else {
                 // Check for custom-listening-InboundEndpoints
                 InboundProcessorParams inboundParams = inboundEndpointInfoDTO.getInboundParams();

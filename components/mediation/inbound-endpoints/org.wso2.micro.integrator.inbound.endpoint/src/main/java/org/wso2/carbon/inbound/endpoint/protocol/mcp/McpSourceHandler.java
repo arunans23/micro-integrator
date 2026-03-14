@@ -1,0 +1,149 @@
+/*
+ * Copyright (c) 2025, WSO2 LLC. (http://www.wso2.org) All Rights Reserved.
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.wso2.carbon.inbound.endpoint.protocol.mcp;
+
+import org.apache.axis2.transport.base.threads.WorkerPool;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.http.HttpException;
+import org.apache.http.nio.NHttpServerConnection;
+import org.apache.synapse.transport.passthru.ProtocolState;
+import org.apache.synapse.transport.passthru.SourceContext;
+import org.apache.synapse.transport.passthru.SourceHandler;
+import org.apache.synapse.transport.passthru.SourceRequest;
+import org.apache.synapse.transport.passthru.config.SourceConfiguration;
+
+import java.io.IOException;
+import java.io.OutputStream;
+
+/**
+ * NIO event handler for the MCP inbound endpoint port.
+ *
+ * <p>Extends {@link SourceHandler} to reuse the PassThrough NIO infrastructure.
+ * On each incoming request, routes to either:
+ * <ul>
+ *   <li>{@link McpRpcWorker} for {@code POST /mcp} (JSON-RPC)</li>
+ *   <li>{@link McpSseWorker} for {@code GET /mcp} (SSE stream)</li>
+ * </ul>
+ * All other paths respond with 404.
+ */
+public class McpSourceHandler extends SourceHandler {
+
+    private static final Log log = LogFactory.getLog(McpSourceHandler.class);
+
+    private final SourceConfiguration sourceConfiguration;
+    private final McpProtocolHandler protocolHandler;
+    private WorkerPool workerPool;
+
+    public McpSourceHandler(SourceConfiguration sourceConfiguration,
+                            McpProtocolHandler protocolHandler) {
+        super(sourceConfiguration);
+        this.sourceConfiguration = sourceConfiguration;
+        this.protocolHandler = protocolHandler;
+    }
+
+    @Override
+    public void requestReceived(NHttpServerConnection conn) {
+        try {
+            SourceRequest request = getSourceRequest(conn);
+            if (request == null) {
+                return;
+            }
+
+            String method = request.getRequest() != null
+                    ? request.getRequest().getRequestLine().getMethod().toUpperCase() : "";
+            String uri = request.getUri();
+
+            // Strip query string for path matching
+            String path = uri.contains("?") ? uri.substring(0, uri.indexOf("?")) : uri;
+
+            if (!McpConstants.PATH_MCP.equals(path)) {
+                sendNotFound(request);
+                return;
+            }
+
+            // getOutputStream() returns non-null only for GET/HEAD — provides the output stream
+            // backed by a SimpleOutputBuffer for the NIO layer. For POST it returns null.
+            OutputStream os = getOutputStream(method, request);
+
+            WorkerPool pool = getWorkerPool();
+            if (McpConstants.HTTP_GET.equals(method)) {
+                pool.execute(new McpSseWorker(request, sourceConfiguration));
+            } else if (McpConstants.HTTP_POST.equals(method)) {
+                pool.execute(new McpRpcWorker(request, sourceConfiguration, protocolHandler));
+            } else {
+                sendMethodNotAllowed(request);
+            }
+
+        } catch (HttpException e) {
+            log.error("HttpException in McpSourceHandler.requestReceived", e);
+            informReaderError(conn);
+            SourceContext.updateState(conn, ProtocolState.CLOSED);
+            sourceConfiguration.getSourceConnections().shutDownConnection(conn, true);
+        } catch (IOException e) {
+            logIOException(conn, e);
+            informReaderError(conn);
+            SourceContext.updateState(conn, ProtocolState.CLOSED);
+            sourceConfiguration.getSourceConnections().shutDownConnection(conn, true);
+        }
+    }
+
+    private WorkerPool getWorkerPool() {
+        if (workerPool == null) {
+            synchronized (this) {
+                if (workerPool == null) {
+                    workerPool = sourceConfiguration.getWorkerPool();
+                }
+            }
+        }
+        return workerPool;
+    }
+
+    private void sendNotFound(SourceRequest request) {
+        sendSimpleResponse(request, 404, "Not Found: only /mcp is served by this endpoint");
+    }
+
+    private void sendMethodNotAllowed(SourceRequest request) {
+        sendSimpleResponse(request, 405, "Method Not Allowed: use GET (SSE) or POST (JSON-RPC)");
+    }
+
+    private void sendSimpleResponse(SourceRequest request, int statusCode, String body) {
+        try {
+            byte[] bodyBytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            org.apache.synapse.transport.passthru.Pipe pipe =
+                    new org.apache.synapse.transport.passthru.Pipe(
+                            sourceConfiguration.getBufferFactory().getBuffer(),
+                            "MCP-ERR", sourceConfiguration);
+            pipe.attachConsumer(request.getConnection());
+            org.apache.synapse.transport.passthru.SourceResponse resp =
+                    new org.apache.synapse.transport.passthru.SourceResponse(
+                            sourceConfiguration, statusCode, request);
+            resp.addHeader(McpConstants.HEADER_CONTENT_TYPE, "text/plain");
+            resp.connect(pipe);
+            SourceContext.setResponse(request.getConnection(), resp);
+            request.getConnection().requestOutput();
+            try (java.io.OutputStream out = pipe.getOutputStream()) {
+                out.write(bodyBytes);
+                out.flush();
+            }
+            pipe.setSerializationComplete(true);
+        } catch (Exception e) {
+            log.error("Failed to send MCP error response (status=" + statusCode + ")", e);
+        }
+    }
+}
