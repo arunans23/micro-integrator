@@ -30,9 +30,25 @@ import java.util.List;
  * Handles MCP JSON-RPC 2.0 requests received on {@code POST /mcp}.
  *
  * <p>Routes each request to the appropriate method handler and returns a
- * JSON-RPC 2.0 response object.
+ * {@link HandleResult} containing the JSON-RPC 2.0 response and, for
+ * {@code initialize}, the newly allocated session ID.
  */
 public class McpProtocolHandler {
+
+    /**
+     * Result of a {@link #handle} call.
+     */
+    public static class HandleResult {
+        /** JSON-RPC 2.0 response object; {@code null} for notifications (204). */
+        public final JSONObject response;
+        /** Non-null only when the call was {@code initialize} — the newly created session ID. */
+        public final String newSessionId;
+
+        HandleResult(JSONObject response, String newSessionId) {
+            this.response = response;
+            this.newSessionId = newSessionId;
+        }
+    }
 
     private static final Log log = LogFactory.getLog(McpProtocolHandler.class);
 
@@ -52,24 +68,26 @@ public class McpProtocolHandler {
     }
 
     /**
-     * Processes a raw JSON-RPC 2.0 request body and returns the JSON-RPC response.
+     * Processes a raw JSON-RPC 2.0 request body and returns a {@link HandleResult}.
      *
      * @param requestBody raw JSON string from the HTTP body
-     * @return JSON-RPC 2.0 response object (never null)
+     * @return result containing the response JSON (null for notifications) and an optional new session ID
      */
-    public JSONObject handle(String requestBody) {
+    public HandleResult handle(String requestBody) {
         JSONObject request;
         try {
             request = new JSONObject(requestBody);
         } catch (Exception e) {
-            return errorResponse(null, McpConstants.ERROR_PARSE, "Parse error: " + e.getMessage());
+            return new HandleResult(errorResponse(null, McpConstants.ERROR_PARSE,
+                    "Parse error: " + e.getMessage()), null);
         }
 
         Object id = request.opt(McpConstants.ID);
         String method = request.optString(McpConstants.METHOD, null);
 
         if (method == null) {
-            return errorResponse(id, McpConstants.ERROR_METHOD_NOT_FOUND, "Missing 'method' field");
+            return new HandleResult(errorResponse(id, McpConstants.ERROR_METHOD_NOT_FOUND,
+                    "Missing 'method' field"), null);
         }
 
         JSONObject params = request.optJSONObject(McpConstants.PARAMS);
@@ -82,20 +100,22 @@ public class McpProtocolHandler {
         }
 
         switch (method) {
-            case McpConstants.METHOD_INITIALIZE:
-                return successResponse(id, handleInitialize());
+            case McpConstants.METHOD_INITIALIZE: {
+                String newSessionId = McpSessionRegistry.getInstance().createSession();
+                return new HandleResult(successResponse(id, handleInitialize()), newSessionId);
+            }
             case McpConstants.METHOD_INITIALIZED:
-                // Notification — no response required per spec, but we return an empty result
-                return null;
+                // Notification — no response (204 No Content)
+                return new HandleResult(null, null);
             case McpConstants.METHOD_TOOLS_LIST:
-                return successResponse(id, handleToolsList());
+                return new HandleResult(successResponse(id, handleToolsList()), null);
             case McpConstants.METHOD_TOOLS_CALL:
-                return handleToolsCall(id, params);
+                return new HandleResult(handleToolsCall(id, params), null);
             case McpConstants.METHOD_PING:
-                return successResponse(id, new JSONObject());
+                return new HandleResult(successResponse(id, new JSONObject()), null);
             default:
-                return errorResponse(id, McpConstants.ERROR_METHOD_NOT_FOUND,
-                        "Method not found: " + method);
+                return new HandleResult(errorResponse(id, McpConstants.ERROR_METHOD_NOT_FOUND,
+                        "Method not found: " + method), null);
         }
     }
 

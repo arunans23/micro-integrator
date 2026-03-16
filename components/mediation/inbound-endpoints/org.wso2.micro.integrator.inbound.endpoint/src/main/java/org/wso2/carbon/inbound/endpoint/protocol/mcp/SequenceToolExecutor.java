@@ -17,15 +17,14 @@
  */
 package org.wso2.carbon.inbound.endpoint.protocol.mcp;
 
-import org.apache.axiom.om.OMAbstractFactory;
-import org.apache.axiom.soap.SOAPEnvelope;
-import org.apache.axiom.soap.SOAPFactory;
 import org.apache.axis2.AxisFault;
+import org.apache.axis2.Constants;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.SynapseConstants;
 import org.apache.synapse.SynapseException;
+import org.apache.synapse.commons.json.JsonUtil;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.mediators.base.SequenceMediator;
 import org.json.JSONObject;
@@ -110,17 +109,15 @@ public class SequenceToolExecutor {
         axis2Ctx.setServerSide(true);
         axis2Ctx.setMessageID(org.apache.axiom.util.UIDGenerator.generateUID());
 
-        // Build an empty SOAP envelope as the message body carrier
-        SOAPFactory soapFactory = OMAbstractFactory.getSOAP12Factory();
-        SOAPEnvelope envelope = soapFactory.getDefaultEnvelope();
-        try {
-            msgCtx.setEnvelope(envelope);
-        } catch (AxisFault e) {
-            throw e;
-        }
+        // Set the tool arguments JSON as the message body so sequences can use
+        // json-eval($.paramName) expressions directly without extra parsing.
+        JsonUtil.getNewJsonPayload(axis2Ctx, args.toString(), true, true);
+        axis2Ctx.setProperty(Constants.Configuration.MESSAGE_TYPE, "application/json");
+        axis2Ctx.setProperty(Constants.Configuration.CONTENT_TYPE, "application/json");
 
         msgCtx.setProperty(SynapseConstants.IS_INBOUND, true);
         msgCtx.setProperty(McpConstants.MC_PROPERTY_TOOL_NAME, toolName);
+        // Also keep mcp.tool.arguments as a property for sequences that prefer it
         msgCtx.setProperty(McpConstants.MC_PROPERTY_TOOL_ARGUMENTS, args.toString());
 
         return msgCtx;

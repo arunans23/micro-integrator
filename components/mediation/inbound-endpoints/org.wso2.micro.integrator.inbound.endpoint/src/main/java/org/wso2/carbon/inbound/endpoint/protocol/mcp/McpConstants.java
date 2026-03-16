@@ -55,6 +55,17 @@ public class McpConstants {
     public static final String HEADER_CONNECTION = "Connection";
     public static final String HEADER_ACCEPT = "Accept";
     public static final String HEADER_LAST_EVENT_ID = "Last-Event-ID";
+    public static final String HEADER_MCP_SESSION_ID = "Mcp-Session-Id";
+
+    // CORS headers
+    public static final String HEADER_CORS_ALLOW_ORIGIN = "Access-Control-Allow-Origin";
+    public static final String HEADER_CORS_ALLOW_METHODS = "Access-Control-Allow-Methods";
+    public static final String HEADER_CORS_ALLOW_HEADERS = "Access-Control-Allow-Headers";
+    public static final String HEADER_CORS_EXPOSE_HEADERS = "Access-Control-Expose-Headers";
+    public static final String CORS_ALLOW_ORIGIN_VALUE = "*";
+    public static final String CORS_ALLOW_METHODS_VALUE = "GET, POST, DELETE, OPTIONS";
+    public static final String CORS_ALLOW_HEADERS_VALUE = "Content-Type, Mcp-Session-Id";
+    public static final String CORS_EXPOSE_HEADERS_VALUE = "Mcp-Session-Id";
 
     // Content types
     public static final String CONTENT_TYPE_JSON = "application/json";

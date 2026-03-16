@@ -19,6 +19,7 @@ package org.wso2.carbon.inbound.endpoint.protocol.mcp;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.Header;
 import org.apache.synapse.transport.passthru.Pipe;
 import org.apache.synapse.transport.passthru.SourceContext;
 import org.apache.synapse.transport.passthru.SourceRequest;
@@ -89,6 +90,14 @@ public class McpSseWorker implements Runnable {
         sourceResponse.addHeader(McpConstants.HEADER_CONTENT_TYPE, McpConstants.CONTENT_TYPE_SSE);
         sourceResponse.addHeader(McpConstants.HEADER_CACHE_CONTROL, "no-cache");
         sourceResponse.addHeader(McpConstants.HEADER_CONNECTION, "keep-alive");
+        sourceResponse.addHeader(McpConstants.HEADER_CORS_ALLOW_ORIGIN, McpConstants.CORS_ALLOW_ORIGIN_VALUE);
+        sourceResponse.addHeader(McpConstants.HEADER_CORS_EXPOSE_HEADERS, McpConstants.CORS_EXPOSE_HEADERS_VALUE);
+
+        // Echo back the session ID the client opened this stream with, if present
+        String mcpSessionId = getHeader(McpConstants.HEADER_MCP_SESSION_ID);
+        if (mcpSessionId != null) {
+            sourceResponse.addHeader(McpConstants.HEADER_MCP_SESSION_ID, mcpSessionId);
+        }
 
         Pipe pipe = new Pipe(sourceConfiguration.getBufferFactory().getBuffer(),
                 "MCP-SSE-" + sessionId, sourceConfiguration);
@@ -102,9 +111,8 @@ public class McpSseWorker implements Runnable {
         log.info("MCP SSE session opened: " + sessionId);
 
         try (OutputStream out = pipe.getOutputStream()) {
-            // Send the MCP endpoint event so the client knows where to POST requests
-            writeRaw(out, "event: endpoint\ndata: /mcp\n\n");
-
+            // Per MCP Streamable HTTP spec (2024-11-05), GET /mcp is a notification channel.
+            // No initial event is sent — the connection is held open and keepalives are used.
             while (true) {
                 String event = eventQueue.poll(McpConstants.SSE_KEEPALIVE_INTERVAL_MS,
                         TimeUnit.MILLISECONDS);
@@ -126,6 +134,14 @@ public class McpSseWorker implements Runnable {
             McpSseSessionRegistry.getInstance().unregister(sessionId);
             pipe.setSerializationComplete(true);
         }
+    }
+
+    private String getHeader(String headerName) {
+        if (request.getRequest() == null) {
+            return null;
+        }
+        Header h = request.getRequest().getFirstHeader(headerName);
+        return h != null ? h.getValue() : null;
     }
 
     private void writeRaw(OutputStream out, String text) throws IOException {

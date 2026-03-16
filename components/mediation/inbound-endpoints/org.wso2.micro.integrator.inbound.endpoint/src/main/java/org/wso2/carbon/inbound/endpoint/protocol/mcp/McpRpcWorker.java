@@ -19,6 +19,7 @@ package org.wso2.carbon.inbound.endpoint.protocol.mcp;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.Header;
 import org.apache.synapse.transport.passthru.Pipe;
 import org.apache.synapse.transport.passthru.SourceContext;
 import org.apache.synapse.transport.passthru.SourceRequest;
@@ -31,8 +32,19 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Worker for {@code POST /mcp} — reads the JSON-RPC 2.0 request body, delegates to
- * {@link McpProtocolHandler}, and writes the JSON response using the PassThrough Pipe mechanism.
+ * Worker for {@code POST /mcp} — reads the JSON-RPC 2.0 request body, validates the
+ * MCP session, delegates to {@link McpProtocolHandler}, and writes the response using
+ * the PassThrough Pipe mechanism.
+ *
+ * <p>Session lifecycle:
+ * <ul>
+ *   <li>{@code initialize} — no session required; creates one and returns it via
+ *       {@code Mcp-Session-Id} response header.</li>
+ *   <li>All other methods — {@code Mcp-Session-Id} header required; 404 if missing or invalid.</li>
+ * </ul>
+ *
+ * <p>If the client sends {@code Accept: text/event-stream} the response is wrapped
+ * as a single-shot SSE message ({@code event: message}).
  */
 public class McpRpcWorker implements Runnable {
 
@@ -53,33 +65,50 @@ public class McpRpcWorker implements Runnable {
     public void run() {
         try {
             String requestBody = readBody();
-            JSONObject responseJson = protocolHandler.handle(requestBody);
 
-            if (responseJson == null) {
+            // Determine method without fully parsing (avoids double-parse on error)
+            String method = extractMethod(requestBody);
+
+            // Session validation — initialize is exempt (it creates the session)
+            if (!McpConstants.METHOD_INITIALIZE.equals(method)) {
+                String incomingSessionId = getHeader(McpConstants.HEADER_MCP_SESSION_ID);
+                if (!McpSessionRegistry.getInstance().isValid(incomingSessionId)) {
+                    sendJsonError(404, McpConstants.ERROR_INTERNAL, "Session not found or expired");
+                    return;
+                }
+            }
+
+            McpProtocolHandler.HandleResult result = protocolHandler.handle(requestBody);
+
+            String accept = getHeader(McpConstants.HEADER_ACCEPT);
+            boolean wantsSse = accept != null && accept.contains(McpConstants.CONTENT_TYPE_SSE);
+
+            if (result.response == null) {
                 // notifications/initialized — 204 No Content
-                sendNoContentResponse();
+                sendNoContentResponse(result.newSessionId);
+            } else if (wantsSse) {
+                sendSseResponse(result.response, result.newSessionId);
             } else {
-                byte[] responseBytes = responseJson.toString().getBytes(StandardCharsets.UTF_8);
-                sendJsonResponse(200, responseBytes);
+                byte[] responseBytes = result.response.toString().getBytes(StandardCharsets.UTF_8);
+                sendJsonResponse(200, responseBytes, result.newSessionId);
             }
         } catch (Exception e) {
             log.error("McpRpcWorker failed", e);
             try {
-                byte[] errorBytes = ("{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":"
-                        + "{\"code\":-32603,\"message\":\"Internal server error\"}}")
-                        .getBytes(StandardCharsets.UTF_8);
-                sendJsonResponse(500, errorBytes);
+                sendJsonError(500, McpConstants.ERROR_INTERNAL, "Internal server error");
             } catch (Exception ex) {
                 log.error("Failed to send MCP error response", ex);
             }
         }
     }
 
+    // ---- body reading -------------------------------------------------------
+
     private String readBody() throws IOException {
         if (!request.isEntityEnclosing()) {
             return "";
         }
-        org.apache.synapse.transport.passthru.Pipe requestPipe = request.getPipe();
+        Pipe requestPipe = request.getPipe();
         if (requestPipe == null) {
             return "";
         }
@@ -96,21 +125,48 @@ public class McpRpcWorker implements Runnable {
         return sb.toString();
     }
 
-    private void sendJsonResponse(int statusCode, byte[] body) throws IOException {
+    /** Extracts the {@code method} field from the JSON body without full parsing. */
+    private String extractMethod(String body) {
+        try {
+            return new JSONObject(body).optString(McpConstants.METHOD, "");
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    // ---- header helpers -----------------------------------------------------
+
+    private String getHeader(String headerName) {
+        if (request.getRequest() == null) {
+            return null;
+        }
+        Header h = request.getRequest().getFirstHeader(headerName);
+        return h != null ? h.getValue() : null;
+    }
+
+    // ---- response helpers ---------------------------------------------------
+
+    private void addCorsHeaders(SourceResponse resp) {
+        resp.addHeader(McpConstants.HEADER_CORS_ALLOW_ORIGIN, McpConstants.CORS_ALLOW_ORIGIN_VALUE);
+        resp.addHeader(McpConstants.HEADER_CORS_EXPOSE_HEADERS, McpConstants.CORS_EXPOSE_HEADERS_VALUE);
+    }
+
+    private void sendJsonResponse(int statusCode, byte[] body, String sessionId) throws IOException {
         SourceResponse sourceResponse = new SourceResponse(sourceConfiguration, statusCode, request);
         sourceResponse.addHeader(McpConstants.HEADER_CONTENT_TYPE,
                 McpConstants.CONTENT_TYPE_JSON + "; charset=UTF-8");
+        addCorsHeaders(sourceResponse);
+        if (sessionId != null) {
+            sourceResponse.addHeader(McpConstants.HEADER_MCP_SESSION_ID, sessionId);
+        }
 
         Pipe pipe = new Pipe(sourceConfiguration.getBufferFactory().getBuffer(),
                 "MCP-RPC", sourceConfiguration);
         pipe.attachConsumer(request.getConnection());
         sourceResponse.connect(pipe);
-
-        // Wake the NIO reactor — it will call SourceHandler.responseReady() -> sourceResponse.start()
         SourceContext.setResponse(request.getConnection(), sourceResponse);
         request.getConnection().requestOutput();
 
-        // Write body on this worker thread; the Pipe bridges to the NIO encoder
         try (OutputStream out = pipe.getOutputStream()) {
             out.write(body);
             out.flush();
@@ -118,11 +174,55 @@ public class McpRpcWorker implements Runnable {
         pipe.setSerializationComplete(true);
     }
 
-    private void sendNoContentResponse() throws IOException {
+    private void sendNoContentResponse(String sessionId) throws IOException {
         SourceResponse sourceResponse = new SourceResponse(sourceConfiguration, 204, request);
-        // 204 has no body — connect null pipe so SourceResponse.write() calls encoder.complete()
+        addCorsHeaders(sourceResponse);
+        if (sessionId != null) {
+            sourceResponse.addHeader(McpConstants.HEADER_MCP_SESSION_ID, sessionId);
+        }
         sourceResponse.connect(null);
         SourceContext.setResponse(request.getConnection(), sourceResponse);
         request.getConnection().requestOutput();
+    }
+
+    /**
+     * Wraps the JSON-RPC response in a single-shot SSE message for clients that
+     * send {@code Accept: text/event-stream}.
+     */
+    private void sendSseResponse(JSONObject responseJson, String sessionId) throws IOException {
+        String ssePayload = "event: message\ndata: " + responseJson.toString() + "\n\n";
+        byte[] body = ssePayload.getBytes(StandardCharsets.UTF_8);
+
+        SourceResponse sourceResponse = new SourceResponse(sourceConfiguration, 200, request);
+        sourceResponse.addHeader(McpConstants.HEADER_CONTENT_TYPE, McpConstants.CONTENT_TYPE_SSE);
+        sourceResponse.addHeader(McpConstants.HEADER_CACHE_CONTROL, "no-cache");
+        addCorsHeaders(sourceResponse);
+        if (sessionId != null) {
+            sourceResponse.addHeader(McpConstants.HEADER_MCP_SESSION_ID, sessionId);
+        }
+
+        Pipe pipe = new Pipe(sourceConfiguration.getBufferFactory().getBuffer(),
+                "MCP-SSE-RPC", sourceConfiguration);
+        pipe.attachConsumer(request.getConnection());
+        sourceResponse.connect(pipe);
+        SourceContext.setResponse(request.getConnection(), sourceResponse);
+        request.getConnection().requestOutput();
+
+        try (OutputStream out = pipe.getOutputStream()) {
+            out.write(body);
+            out.flush();
+        }
+        pipe.setSerializationComplete(true);
+    }
+
+    private void sendJsonError(int statusCode, int errorCode, String message) throws IOException {
+        JSONObject err = new JSONObject();
+        err.put(McpConstants.ERROR_CODE, errorCode);
+        err.put(McpConstants.ERROR_MESSAGE, message);
+        JSONObject body = new JSONObject();
+        body.put(McpConstants.JSONRPC, McpConstants.JSONRPC_VERSION);
+        body.put(McpConstants.ID, JSONObject.NULL);
+        body.put(McpConstants.ERROR, err);
+        sendJsonResponse(statusCode, body.toString().getBytes(StandardCharsets.UTF_8), null);
     }
 }
