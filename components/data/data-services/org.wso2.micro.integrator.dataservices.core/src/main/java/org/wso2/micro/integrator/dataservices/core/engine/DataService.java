@@ -191,6 +191,11 @@ public class DataService implements AxisResources {
      */
     private String swaggerResourcePath;
 
+    /**
+     * Flag to check if GraphQL API is enabled for this data service.
+     */
+    private boolean graphQLEnabled;
+
 	public DataService(String name, String description,
                        String defaultNamespace, String dsLocation, String serviceStatus,
                        boolean batchRequestsEnabled, boolean boxcarringEnabled,
@@ -595,6 +600,14 @@ public class DataService implements AxisResources {
 
     public void setSwaggerResourcePath(String swaggerResourcePath) {
         this.swaggerResourcePath = swaggerResourcePath;
+    }
+
+    public boolean isGraphQLEnabled() {
+        return graphQLEnabled;
+    }
+
+    public void setGraphQLEnabled(boolean graphQLEnabled) {
+        this.graphQLEnabled = graphQLEnabled;
     }
 
     /**

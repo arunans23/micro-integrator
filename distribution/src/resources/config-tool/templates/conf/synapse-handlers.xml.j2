@@ -17,6 +17,7 @@
 
 <handlers>
     <handler name="IntegratorSynapseHandler" class="org.wso2.micro.integrator.dataservices.odata.endpoint.ODataPassThroughHandler"/>
+    <handler name="GraphQLSynapseHandler" class="org.wso2.micro.integrator.dataservices.graphql.endpoint.GraphQLPassThroughHandler"/>
     {% for handler in synapse_handlers %}
         {% if handler.parameters is defined %}
     <handler name="{{handler.name}}" class="{{handler.class}}">

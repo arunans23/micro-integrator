@@ -77,6 +77,8 @@ import org.wso2.micro.integrator.dataservices.core.engine.DataService;
 import org.wso2.micro.integrator.dataservices.core.engine.QueryParam;
 import org.wso2.micro.integrator.dataservices.core.jmx.DataServiceInstance;
 import org.wso2.micro.integrator.dataservices.core.jmx.DataServiceInstanceMBean;
+import org.wso2.micro.integrator.dataservices.core.graphql.GraphQLServiceHandler;
+import org.wso2.micro.integrator.dataservices.core.graphql.GraphQLServiceRegistry;
 import org.wso2.micro.integrator.dataservices.core.odata.ODataServiceHandler;
 import org.wso2.micro.integrator.dataservices.core.odata.ODataServiceRegistry;
 import org.wso2.micro.integrator.ndatasource.common.DataSourceConstants;
@@ -493,12 +495,18 @@ public class DBDeployer extends AbstractDeployer {
 						removeODataHandler(org.wso2.micro.core.Constants.SUPER_TENANT_DOMAIN_NAME, dataService.getName() + configID);
 					}
 				}
+				if (dataService.isGraphQLEnabled()) {
+					GraphQLServiceRegistry.getInstance().unregisterService(dataService.getName());
+				}
 			} else {
 				/* cleanup data service */
 				for (String configID : dataService.getConfigs().keySet()) {
 					if (dataService.getConfig(configID).isODataEnabled()) {
 						removeODataHandler(org.wso2.micro.core.Constants.SUPER_TENANT_DOMAIN_NAME, dataService.getName() + configID);
 					}
+				}
+				if (dataService.isGraphQLEnabled()) {
+					GraphQLServiceRegistry.getInstance().unregisterService(dataService.getName());
 				}
 				dataService.cleanup();
 				this.axisConfig.removeService(serviceName);
@@ -849,6 +857,15 @@ public class DBDeployer extends AbstractDeployer {
 					                                                             configId);
 					registerODataHandler(dataService.getName(), serviceHandler,
 					                     org.wso2.micro.core.Constants.SUPER_TENANT_DOMAIN_NAME, configId);
+				}
+			}
+
+			/* create the GraphQL service if enabled */
+			if (dataService.isGraphQLEnabled()) {
+				GraphQLServiceHandler graphQLHandler = new GraphQLServiceHandler(dataService);
+				GraphQLServiceRegistry.getInstance().registerService(dataService.getName(), graphQLHandler);
+				if (log.isDebugEnabled()) {
+					log.debug("GraphQL API registered for data service: " + dataService.getName());
 				}
 			}
 

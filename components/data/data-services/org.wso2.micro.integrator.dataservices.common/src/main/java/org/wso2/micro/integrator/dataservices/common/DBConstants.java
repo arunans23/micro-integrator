@@ -799,6 +799,7 @@ public final class DBConstants {
         public static final String ENABLESEC = "enableSec";
         public static final String CONFIG = "config";
         public static final String ENABLE_ODATA = "enableOData";
+        public static final String ENABLE_GRAPHQL = "enableGraphQL";
         public static final String QUERY = "query";
         public static final String OPERATION = "operation";
         public static final String RESOURCE = "resource";

@@ -76,7 +76,10 @@ public class IntegratorStatefulHandler extends AbstractDispatcher {
             msgctx.setAxisService(rubsd.findService(msgctx));
         }
 
-        if (msgctx.getProperty("transport.http.servletRequest") == null && uri != null && uri.contains("/odata/")) {
+        if (msgctx.getProperty("transport.http.servletRequest") == null && uri != null && uri.contains("/graphql/")) {
+            msgctx.setProperty("IsGraphQLService", true);
+            setSynapseContext(msgctx, msgctx.getAxisService());
+        } else if (msgctx.getProperty("transport.http.servletRequest") == null && uri != null && uri.contains("/odata/")) {
             //since all the tenant related requests are handling from the odata web app,
             // tenant request needs to be routed to the web app
             //TODO Temporarily commenting out following, need to revisit and fix for odata scenario

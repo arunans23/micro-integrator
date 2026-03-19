@@ -42,6 +42,23 @@
             <artifactId>odata-server</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.graphql-java</groupId>
+            <artifactId>graphql-java</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.graphql-java</groupId>
+            <artifactId>java-dataloader</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr4-runtime</artifactId>
+            <version>${antlr4.standard.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.reactivestreams</groupId>
+            <artifactId>reactive-streams</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.wso2.ei</groupId>
             <artifactId>org.wso2.micro.integrator.ndatasource.core</artifactId>
             <exclusions>
@@ -313,9 +330,13 @@
                         <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
                         <Bundle-Name>${project.artifactId}</Bundle-Name>
                         <Private-Package>org.wso2.micro.integrator.dataservices.core.internal</Private-Package>
+                        <Embed-Dependency>graphql-java;inline=true,java-dataloader;inline=true,antlr4-runtime;groupId=org.antlr;inline=true,reactive-streams;inline=true</Embed-Dependency>
                         <Export-Package>
                             !org.wso2.micro.integrator.dataservices.core.internal;version="${project.version}",
-                            org.wso2.micro.integrator.dataservices.core.*;version="${project.version}"
+                            org.wso2.micro.integrator.dataservices.core.*;version="${project.version}",
+                            graphql.*;-split-package:=merge-first,
+                            org.antlr.v4.*;-split-package:=merge-first,
+                            org.reactivestreams.*;-split-package:=merge-first
                         </Export-Package>
                         <Import-Package>
                             !org.wso2.micro.integrator.dataservices.core.*,

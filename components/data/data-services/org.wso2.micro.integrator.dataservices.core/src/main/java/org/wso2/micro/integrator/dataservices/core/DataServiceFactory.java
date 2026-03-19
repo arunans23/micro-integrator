@@ -176,6 +176,12 @@ public class DataServiceFactory {
             /* set disable legacy boxcarring mode */
             dataService.setDisableLegacyBoxcarringMode(disableLegacyBoxcarringMode);
 
+            /* set GraphQL enabled */
+            String graphQLEnabledStr = dbsElement.getAttributeValue(new QName(DBSFields.ENABLE_GRAPHQL));
+            if (graphQLEnabledStr != null) {
+                dataService.setGraphQLEnabled(Boolean.parseBoolean(graphQLEnabledStr));
+            }
+
             /* set transports */
             String transports = dbsElement.getAttributeValue(new QName(DBSFields.TRANSPORTS));
             if (transports != null && !transports.isEmpty()) {

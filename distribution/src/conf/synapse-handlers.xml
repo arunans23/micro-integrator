@@ -23,4 +23,6 @@
       -->
     <handler name="IntegratorSynapseHandler"
              class="org.wso2.micro.integrator.dataservices.odata.endpoint.ODataPassThroughHandler"/>
+    <handler name="GraphQLSynapseHandler"
+             class="org.wso2.micro.integrator.dataservices.graphql.endpoint.GraphQLPassThroughHandler"/>
 </handlers>
