@@ -1,0 +1,109 @@
+<!--
+  ~ Copyright (c) 2024, WSO2 LLC. (http://www.wso2.com) All Rights Reserved.
+  ~
+  ~ WSO2 LLC. licenses this file to you under the Apache License,
+  ~ Version 2.0 (the "License"); you may not use this file except
+  ~ in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~ http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing,
+  ~ software distributed under the License is distributed on an
+  ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  ~ KIND, either express or implied. See the License for the
+  ~ specific language governing permissions and limitations
+  ~ under the License.
+  -->
+
+<!-- Data service that exposes the OData test H2 database via GraphQL.
+     Customers table provides read-only query data (122 pre-populated rows).
+     Student table is used for mutation tests (insert / delete). -->
+<data name="GraphQLSampleService" enableGraphQL="true" transports="http https local">
+   <config id="default">
+      <property name="org.wso2.ws.dataservice.driver">org.h2.Driver</property>
+      <property name="org.wso2.ws.dataservice.protocol">jdbc:h2:file:./../../h2DataBase/testdb_for_ODataTestCase_withH2</property>
+      <property name="org.wso2.ws.dataservice.user">wso2carbon</property>
+      <property name="org.wso2.ws.dataservice.password">wso2carbon</property>
+      <property name="org.wso2.ws.dataservice.minpoolsize">1</property>
+      <property name="org.wso2.ws.dataservice.maxpoolsize">10</property>
+      <property name="org.wso2.ws.dataservice.autocommit">false</property>
+      <property name="org.wso2.ws.dataservice.validation_query"/>
+   </config>
+
+   <!-- ===== Query operations (become GraphQL Query type fields) ===== -->
+
+   <query id="getCustomersQuery" useConfig="default">
+      <sql>SELECT customerNumber, customerName, contactFirstName, contactLastName, country FROM Customers ORDER BY customerNumber</sql>
+      <result element="Customers" rowName="Customer">
+         <element column="customerNumber"    name="customerNumber"    xsdType="xs:integer"/>
+         <element column="customerName"      name="customerName"      xsdType="xs:string"/>
+         <element column="contactFirstName"  name="contactFirstName"  xsdType="xs:string"/>
+         <element column="contactLastName"   name="contactLastName"   xsdType="xs:string"/>
+         <element column="country"           name="country"           xsdType="xs:string"/>
+      </result>
+   </query>
+
+   <query id="getCustomerByNumberQuery" useConfig="default">
+      <sql>SELECT customerNumber, customerName, contactFirstName, contactLastName, country FROM Customers WHERE customerNumber = :customerNumber</sql>
+      <result element="Customers" rowName="Customer">
+         <element column="customerNumber"    name="customerNumber"    xsdType="xs:integer"/>
+         <element column="customerName"      name="customerName"      xsdType="xs:string"/>
+         <element column="contactFirstName"  name="contactFirstName"  xsdType="xs:string"/>
+         <element column="contactLastName"   name="contactLastName"   xsdType="xs:string"/>
+         <element column="country"           name="country"           xsdType="xs:string"/>
+      </result>
+      <param name="customerNumber" sqlType="INTEGER"/>
+   </query>
+
+   <query id="getStudentsQuery" useConfig="default">
+      <sql>SELECT studentId, firstName, lastName FROM Student ORDER BY studentId</sql>
+      <result element="Students" rowName="Student">
+         <element column="studentId"  name="studentId"  xsdType="xs:integer"/>
+         <element column="firstName"  name="firstName"  xsdType="xs:string"/>
+         <element column="lastName"   name="lastName"   xsdType="xs:string"/>
+      </result>
+   </query>
+
+   <!-- ===== Mutation operations (no <result> → GraphQL Mutation type fields) ===== -->
+
+   <query id="insertStudentQuery" useConfig="default">
+      <sql>INSERT INTO Student (firstName, lastName) VALUES (:firstName, :lastName)</sql>
+      <param name="firstName" sqlType="STRING"/>
+      <param name="lastName"  sqlType="STRING"/>
+   </query>
+
+   <query id="deleteStudentQuery" useConfig="default">
+      <sql>DELETE FROM Student WHERE studentId = :studentId</sql>
+      <param name="studentId" sqlType="INTEGER"/>
+   </query>
+
+   <!-- ===== Operations wiring ===== -->
+
+   <operation name="getCustomers">
+      <call-query href="getCustomersQuery"/>
+   </operation>
+
+   <operation name="getCustomerByNumber">
+      <call-query href="getCustomerByNumberQuery">
+         <with-param name="customerNumber" query-param="customerNumber"/>
+      </call-query>
+   </operation>
+
+   <operation name="getStudents">
+      <call-query href="getStudentsQuery"/>
+   </operation>
+
+   <operation name="insertStudent">
+      <call-query href="insertStudentQuery">
+         <with-param name="firstName" query-param="firstName"/>
+         <with-param name="lastName"  query-param="lastName"/>
+      </call-query>
+   </operation>
+
+   <operation name="deleteStudent">
+      <call-query href="deleteStudentQuery">
+         <with-param name="studentId" query-param="studentId"/>
+      </call-query>
+   </operation>
+</data>

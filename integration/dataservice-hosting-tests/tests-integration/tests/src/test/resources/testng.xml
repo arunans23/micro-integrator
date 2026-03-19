@@ -54,6 +54,13 @@
             </packages>
         </test>-->
     
+    <test name="GraphQL-tests" parallel="false" verbose="2">
+        <classes>
+            <class name="org.wso2.ei.dataservice.integration.test.graphql.GraphQLQueryTestCase"/>
+            <class name="org.wso2.ei.dataservice.integration.test.graphql.GraphQLMutationTestCase"/>
+        </classes>
+    </test>
+
     <test name="OData-tests" parallel="false" verbose="2">
         <classes>
             <class name="org.wso2.ei.dataservice.integration.test.odata.ODataDataTypeSupportTestCase"/>
