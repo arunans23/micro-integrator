@@ -104,15 +104,18 @@ public class McpToolDefinitionLoader {
 
         OMElement apiBinding = firstChild(root, McpConstants.ELEM_API_BINDING);
         OMElement seqBinding = firstChild(root, McpConstants.ELEM_SEQUENCE_BINDING);
+        OMElement mgmtBinding = firstChild(root, McpConstants.ELEM_MANAGEMENT_API_BINDING);
 
         if (apiBinding != null) {
             parseApiBinding(apiBinding, tool, localEntryKey);
         } else if (seqBinding != null) {
             parseSequenceBinding(seqBinding, tool, localEntryKey);
+        } else if (mgmtBinding != null) {
+            parseManagementApiBinding(mgmtBinding, tool, localEntryKey);
         } else {
             throw new IllegalArgumentException(
                     "MCP tool '" + tool.getName() + "' in local entry '" + localEntryKey
-                    + "' has neither <apiBinding> nor <sequenceBinding>");
+                    + "' has no <apiBinding>, <sequenceBinding>, or <managementApiBinding>");
         }
         return tool;
     }
@@ -158,6 +161,38 @@ public class McpToolDefinitionLoader {
         tool.setApiMethod(methodElem != null ? methodElem.getText().trim().toUpperCase() : "GET");
 
         OMElement mappingElem = firstChild(apiBinding, McpConstants.ELEM_PARAMETER_MAPPING);
+        if (mappingElem != null) {
+            Iterator<OMElement> mappings = mappingElem.getChildElements();
+            while (mappings.hasNext()) {
+                OMElement mapping = mappings.next();
+                String param = mapping.getAttributeValue(new QName(McpConstants.ATTR_PARAM));
+                String arg = mapping.getAttributeValue(new QName(McpConstants.ATTR_ARG));
+                if (param == null || arg == null) {
+                    continue;
+                }
+                if (McpConstants.ELEM_PATH.equals(mapping.getLocalName())) {
+                    tool.addPathMapping(new McpToolDescriptor.ParamMapping(param, arg));
+                } else if (McpConstants.ELEM_QUERY.equals(mapping.getLocalName())) {
+                    tool.addQueryMapping(new McpToolDescriptor.ParamMapping(param, arg));
+                }
+            }
+        }
+    }
+
+    private static void parseManagementApiBinding(OMElement mgmtBinding, McpToolDescriptor tool, String key) {
+        tool.setBindingType(McpToolDescriptor.BindingType.MANAGEMENT_API);
+
+        OMElement pathElem = firstChild(mgmtBinding, McpConstants.ELEM_PATH);
+        if (pathElem == null || pathElem.getText().trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Missing <path> in <managementApiBinding> for tool in local entry '" + key + "'");
+        }
+        tool.setManagementPath(pathElem.getText().trim());
+
+        OMElement methodElem = firstChild(mgmtBinding, McpConstants.ELEM_METHOD);
+        tool.setApiMethod(methodElem != null ? methodElem.getText().trim().toUpperCase() : "GET");
+
+        OMElement mappingElem = firstChild(mgmtBinding, McpConstants.ELEM_PARAMETER_MAPPING);
         if (mappingElem != null) {
             Iterator<OMElement> mappings = mappingElem.getChildElements();
             while (mappings.hasNext()) {

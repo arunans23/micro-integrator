@@ -19,8 +19,6 @@ package org.wso2.carbon.inbound.endpoint.protocol.mcp;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.synapse.api.API;
-import org.apache.synapse.config.SynapseConfiguration;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -30,72 +28,75 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Executes an MCP tool by dispatching an HTTP request to the corresponding Synapse REST API
- * on localhost. The API context is resolved from the deployed {@link API} artifact.
+ * Executes an MCP tool by calling a WSO2 MI Management API resource on localhost.
+ *
+ * <p>Targets the internal HTTP port (default 9201) and authenticates with Basic auth
+ * using the credentials configured in the MCP inbound endpoint parameters
+ * ({@code mcp.management.user} / {@code mcp.management.password}).
+ *
+ * <p>Tool definition example:
+ * <pre>{@code
+ * <managementApiBinding>
+ *     <path>/management/apis</path>
+ *     <method>GET</method>
+ *     <parameterMapping>
+ *         <query param="apiName" arg="name"/>
+ *     </parameterMapping>
+ * </managementApiBinding>
+ * }</pre>
  */
-public class ApiToolExecutor {
+public class ManagementApiToolExecutor {
 
-    private static final Log log = LogFactory.getLog(ApiToolExecutor.class);
+    private static final Log log = LogFactory.getLog(ManagementApiToolExecutor.class);
 
     private static final int CONNECT_TIMEOUT_MS = 5000;
     private static final int READ_TIMEOUT_MS = 30000;
 
-    private final SynapseConfiguration synapseConfig;
-    private final int mainHttpPort;
+    private final int managementApiPort;
+    private final String authHeader;
 
-    public ApiToolExecutor(SynapseConfiguration synapseConfig, int mainHttpPort) {
-        this.synapseConfig = synapseConfig;
-        this.mainHttpPort = mainHttpPort;
+    public ManagementApiToolExecutor(int managementApiPort, String username, String password) {
+        this.managementApiPort = managementApiPort;
+        String credentials = username + ":" + password;
+        this.authHeader = "Basic " + Base64.getEncoder().encodeToString(
+                credentials.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
-     * Executes the API-backed tool and returns the response body as a string.
+     * Executes the management API-backed tool and returns the response body.
      *
-     * @param tool tool descriptor with API binding details
+     * @param tool tool descriptor with management API binding details
      * @param args MCP tool arguments
-     * @return response body string
-     * @throws McpToolExecutionException if the API call fails
+     * @return response body string (JSON from the Management API)
+     * @throws McpToolExecutionException if the HTTP call fails
      */
     public String execute(McpToolDescriptor tool, JSONObject args) throws McpToolExecutionException {
-        String apiContext = resolveApiContext(tool.getApiName());
-        String resourcePath = resolveResourcePath(tool.getApiResource(), tool.getPathMappings(), args);
+        String resolvedPath = resolvePathParams(tool.getManagementPath(), tool.getPathMappings(), args);
         String queryString = buildQueryString(tool.getQueryMappings(), args);
 
-        String urlStr = "http://localhost:" + mainHttpPort + apiContext + resourcePath
+        String urlStr = "http://localhost:" + managementApiPort + resolvedPath
                 + (queryString.isEmpty() ? "" : "?" + queryString);
 
-        if (log.isDebugEnabled()) {
-            log.debug("MCP tool '" + tool.getName() + "' → " + tool.getApiMethod() + " " + urlStr);
-        }
+        log.info("MCP management tool '" + tool.getName() + "' → "
+                + tool.getApiMethod() + " " + urlStr);
 
         try {
             return invokeHttp(tool.getApiMethod(), urlStr, args);
         } catch (IOException e) {
-            throw new McpToolExecutionException("HTTP call to Synapse API failed for tool '"
-                    + tool.getName() + "': " + e.getMessage(), e);
+            throw new McpToolExecutionException(
+                    "HTTP call to Management API failed for tool '" + tool.getName()
+                            + "': " + e.getMessage(), e);
         }
     }
 
-    private String resolveApiContext(String apiName) throws McpToolExecutionException {
-        API api = synapseConfig.getAPI(apiName);
-        if (api == null) {
-            throw new McpToolExecutionException("Synapse API '" + apiName + "' is not deployed");
-        }
-        String context = api.getContext();
-        return context.startsWith("/") ? context : "/" + context;
-    }
-
-    private String resolveResourcePath(String resourceTemplate,
-                                       List<McpToolDescriptor.ParamMapping> pathMappings,
-                                       JSONObject args) {
-        if (resourceTemplate == null || resourceTemplate.isEmpty()) {
-            return "";
-        }
-        String path = resourceTemplate;
+    private String resolvePathParams(String pathTemplate,
+                                     List<McpToolDescriptor.ParamMapping> pathMappings,
+                                     JSONObject args) {
+        String path = pathTemplate;
         for (McpToolDescriptor.ParamMapping mapping : pathMappings) {
             if (args.has(mapping.getArg())) {
                 path = path.replace("{" + mapping.getParam() + "}", args.get(mapping.getArg()).toString());
@@ -123,8 +124,8 @@ public class ApiToolExecutor {
         conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
         conn.setReadTimeout(READ_TIMEOUT_MS);
         conn.setRequestProperty("Accept", McpConstants.CONTENT_TYPE_JSON);
+        conn.setRequestProperty("Authorization", authHeader);
 
-        // For methods with a body, send remaining args as JSON payload
         if ("POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method)) {
             byte[] body = args.toString().getBytes(StandardCharsets.UTF_8);
             conn.setDoOutput(true);
@@ -139,7 +140,8 @@ public class ApiToolExecutor {
 
         java.io.InputStream responseStream = isError ? conn.getErrorStream() : conn.getInputStream();
         if (responseStream == null) {
-            throw new IOException("HTTP " + statusCode + " from Synapse API with no response body: " + urlStr);
+            // getErrorStream() returns null when the server sends no error body (e.g. 401 with empty body)
+            throw new IOException("HTTP " + statusCode + " from Management API with no response body: " + urlStr);
         }
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(responseStream, StandardCharsets.UTF_8))) {
@@ -148,7 +150,10 @@ public class ApiToolExecutor {
             while ((line = reader.readLine()) != null) {
                 response.append(line).append("\n");
             }
-            return response.toString().trim();
+            String body = response.toString().trim();
+            log.info("Management API " + method + " " + urlStr
+                    + " → status=" + statusCode + " body_length=" + body.length());
+            return body;
         }
     }
 }

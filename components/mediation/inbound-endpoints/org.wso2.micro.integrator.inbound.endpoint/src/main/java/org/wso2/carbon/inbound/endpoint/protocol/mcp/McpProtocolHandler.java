@@ -19,12 +19,12 @@ package org.wso2.carbon.inbound.endpoint.protocol.mcp;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.synapse.config.SynapseConfiguration;
 import org.apache.synapse.core.SynapseEnvironment;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Handles MCP JSON-RPC 2.0 requests received on {@code POST /mcp}.
@@ -54,17 +54,46 @@ public class McpProtocolHandler {
 
     private final String serverName;
     private final String serverVersion;
-    private final String toolKeys;
+    private final Supplier<List<McpToolDescriptor>> toolsSupplier;
+    /** Null for management-API-only handlers (API/SEQUENCE binding types not used). */
     private final SynapseEnvironment synapseEnvironment;
     private final int mainHttpPort;
+    private final int managementApiPort;
+    private final String managementUser;
+    private final String managementPassword;
 
+    /**
+     * Constructor for inbound endpoint use case — tools loaded from Synapse local entries.
+     */
     public McpProtocolHandler(String serverName, String serverVersion, String toolKeys,
-                              SynapseEnvironment synapseEnvironment, int mainHttpPort) {
+                              SynapseEnvironment synapseEnvironment, int mainHttpPort,
+                              int managementApiPort, String managementUser, String managementPassword) {
         this.serverName = serverName;
         this.serverVersion = serverVersion;
-        this.toolKeys = toolKeys;
+        this.toolsSupplier = () -> McpToolDefinitionLoader.load(
+                toolKeys, synapseEnvironment.getSynapseConfiguration());
         this.synapseEnvironment = synapseEnvironment;
         this.mainHttpPort = mainHttpPort;
+        this.managementApiPort = managementApiPort;
+        this.managementUser = managementUser;
+        this.managementPassword = managementPassword;
+    }
+
+    /**
+     * Constructor for auto-start use case (e.g. management API MCP server) — tools provided
+     * by a supplier, no SynapseEnvironment needed (MANAGEMENT_API binding only).
+     */
+    public McpProtocolHandler(String serverName, String serverVersion,
+                              Supplier<List<McpToolDescriptor>> toolsSupplier,
+                              int managementApiPort, String managementUser, String managementPassword) {
+        this.serverName = serverName;
+        this.serverVersion = serverVersion;
+        this.toolsSupplier = toolsSupplier;
+        this.synapseEnvironment = null;
+        this.mainHttpPort = -1;
+        this.managementApiPort = managementApiPort;
+        this.managementUser = managementUser;
+        this.managementPassword = managementPassword;
     }
 
     /**
@@ -136,8 +165,7 @@ public class McpProtocolHandler {
     }
 
     private JSONObject handleToolsList() {
-        SynapseConfiguration config = synapseEnvironment.getSynapseConfiguration();
-        List<McpToolDescriptor> tools = McpToolDefinitionLoader.load(toolKeys, config);
+        List<McpToolDescriptor> tools = toolsSupplier.get();
 
         JSONArray toolArray = new JSONArray();
         for (McpToolDescriptor tool : tools) {
@@ -160,9 +188,7 @@ public class McpProtocolHandler {
             arguments = new JSONObject();
         }
 
-        SynapseConfiguration config = synapseEnvironment.getSynapseConfiguration();
-        List<McpToolDescriptor> tools = McpToolDefinitionLoader.load(toolKeys, config);
-
+        List<McpToolDescriptor> tools = toolsSupplier.get();
         McpToolDescriptor tool = findTool(tools, toolName);
         if (tool == null) {
             return errorResponse(id, McpConstants.ERROR_TOOL_NOT_FOUND,
@@ -179,13 +205,17 @@ public class McpProtocolHandler {
     }
 
     private String executeTool(McpToolDescriptor tool, JSONObject args) throws McpToolExecutionException {
-        if (tool.getBindingType() == McpToolDescriptor.BindingType.API) {
-            ApiToolExecutor executor = new ApiToolExecutor(
-                    synapseEnvironment.getSynapseConfiguration(), mainHttpPort);
-            return executor.execute(tool, args);
-        } else {
-            SequenceToolExecutor executor = new SequenceToolExecutor(synapseEnvironment);
-            return executor.execute(tool, args);
+        switch (tool.getBindingType()) {
+            case API:
+                return new ApiToolExecutor(
+                        synapseEnvironment.getSynapseConfiguration(), mainHttpPort)
+                        .execute(tool, args);
+            case MANAGEMENT_API:
+                return new ManagementApiToolExecutor(managementApiPort, managementUser, managementPassword)
+                        .execute(tool, args);
+            case SEQUENCE:
+            default:
+                return new SequenceToolExecutor(synapseEnvironment).execute(tool, args);
         }
     }
 

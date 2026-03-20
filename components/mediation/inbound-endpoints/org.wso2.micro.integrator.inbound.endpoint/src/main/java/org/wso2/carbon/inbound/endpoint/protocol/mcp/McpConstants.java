@@ -27,6 +27,12 @@ public class McpConstants {
     public static final String PARAM_TOOLS = "mcp.tools";
     public static final String PARAM_SERVER_NAME = "mcp.server.name";
     public static final String PARAM_SERVER_VERSION = "mcp.server.version";
+    public static final String PARAM_MANAGEMENT_USER = "mcp.management.user";
+    public static final String PARAM_MANAGEMENT_PASSWORD = "mcp.management.password";
+
+    // Default management API credentials
+    public static final String DEFAULT_MANAGEMENT_USER = "admin";
+    public static final String DEFAULT_MANAGEMENT_PASSWORD = "admin";
 
     // MCP transport paths
     public static final String PATH_MCP = "/mcp";
@@ -83,6 +89,7 @@ public class McpConstants {
     public static final String ELEM_PROPERTY = "property";
     public static final String ELEM_API_BINDING = "apiBinding";
     public static final String ELEM_SEQUENCE_BINDING = "sequenceBinding";
+    public static final String ELEM_MANAGEMENT_API_BINDING = "managementApiBinding";
     public static final String ELEM_API = "api";
     public static final String ELEM_RESOURCE = "resource";
     public static final String ELEM_METHOD = "method";

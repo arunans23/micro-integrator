@@ -28,7 +28,7 @@ import java.util.List;
  */
 public class McpToolDescriptor {
 
-    public enum BindingType { API, SEQUENCE }
+    public enum BindingType { API, SEQUENCE, MANAGEMENT_API }
 
     // Core tool metadata
     private String name;
@@ -44,6 +44,9 @@ public class McpToolDescriptor {
     private String apiMethod;
     private List<ParamMapping> pathMappings = new ArrayList<>();
     private List<ParamMapping> queryMappings = new ArrayList<>();
+
+    // Management API binding fields (reuses apiMethod, pathMappings, queryMappings)
+    private String managementPath;
 
     // Sequence binding fields
     private String sequenceName;
@@ -76,6 +79,9 @@ public class McpToolDescriptor {
 
     public List<ParamMapping> getQueryMappings() { return queryMappings; }
     public void addQueryMapping(ParamMapping m) { queryMappings.add(m); }
+
+    public String getManagementPath() { return managementPath; }
+    public void setManagementPath(String managementPath) { this.managementPath = managementPath; }
 
     public String getSequenceName() { return sequenceName; }
     public void setSequenceName(String sequenceName) { this.sequenceName = sequenceName; }

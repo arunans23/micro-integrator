@@ -27,6 +27,7 @@ import org.wso2.carbon.inbound.endpoint.persistence.PersistenceUtils;
 import org.wso2.carbon.inbound.endpoint.protocol.generic.GenericInboundListener;
 import org.wso2.carbon.inbound.endpoint.protocol.http.InboundHttpConstants;
 import org.wso2.carbon.inbound.endpoint.protocol.http.management.HTTPEndpointManager;
+import org.wso2.carbon.inbound.endpoint.protocol.mcp.McpManagementServer;
 import org.wso2.carbon.inbound.endpoint.protocol.websocket.management.WebsocketEndpointManager;
 import org.wso2.carbon.inbound.endpoint.internal.http.api.ConfigurationLoader;
 import org.wso2.carbon.inbound.endpoint.protocol.hl7.management.HL7EndpointManager;
@@ -106,6 +107,7 @@ public class EndpointListenerLoader {
         }
 
         loadInternalInboundApis();
+        McpManagementServer.startIfEnabled();
     }
 
     /**

@@ -99,12 +99,17 @@ public class McpInboundListener implements InboundRequestProcessor {
         String serverVersion = props.getProperty(McpConstants.PARAM_SERVER_VERSION,
                 McpConstants.DEFAULT_SERVER_VERSION);
         String toolKeys = props.getProperty(McpConstants.PARAM_TOOLS, "");
+        String managementUser = props.getProperty(McpConstants.PARAM_MANAGEMENT_USER,
+                McpConstants.DEFAULT_MANAGEMENT_USER);
+        String managementPassword = props.getProperty(McpConstants.PARAM_MANAGEMENT_PASSWORD,
+                McpConstants.DEFAULT_MANAGEMENT_PASSWORD);
 
         SynapseEnvironment synapseEnvironment = params.getSynapseEnvironment();
         int mainHttpPort = resolveMainHttpPort(synapseEnvironment);
+        int managementApiPort = HTTPEndpointManager.getInstance().getInternalInboundHttpPort();
 
         this.protocolHandler = new McpProtocolHandler(serverName, serverVersion, toolKeys,
-                synapseEnvironment, mainHttpPort);
+                synapseEnvironment, mainHttpPort, managementApiPort, managementUser, managementPassword);
     }
 
     @Override

@@ -63,8 +63,9 @@ public class McpRpcWorker implements Runnable {
 
     @Override
     public void run() {
+        String requestBody = "";
         try {
-            String requestBody = readBody();
+            requestBody = readBody();
 
             // Determine method without fully parsing (avoids double-parse on error)
             String method = extractMethod(requestBody);
@@ -95,7 +96,13 @@ public class McpRpcWorker implements Runnable {
         } catch (Exception e) {
             log.error("McpRpcWorker failed", e);
             try {
-                sendJsonError(500, McpConstants.ERROR_INTERNAL, "Internal server error");
+                // Try to extract the id from the request body so the client can match the response
+                Object id = null;
+                try {
+                    id = new org.json.JSONObject(requestBody).opt(McpConstants.ID);
+                } catch (Exception ignored) {
+                }
+                sendJsonErrorWithId(500, McpConstants.ERROR_INTERNAL, "Internal server error: " + e.getMessage(), id);
             } catch (Exception ex) {
                 log.error("Failed to send MCP error response", ex);
             }
@@ -216,12 +223,16 @@ public class McpRpcWorker implements Runnable {
     }
 
     private void sendJsonError(int statusCode, int errorCode, String message) throws IOException {
+        sendJsonErrorWithId(statusCode, errorCode, message, null);
+    }
+
+    private void sendJsonErrorWithId(int statusCode, int errorCode, String message, Object id) throws IOException {
         JSONObject err = new JSONObject();
         err.put(McpConstants.ERROR_CODE, errorCode);
         err.put(McpConstants.ERROR_MESSAGE, message);
         JSONObject body = new JSONObject();
         body.put(McpConstants.JSONRPC, McpConstants.JSONRPC_VERSION);
-        body.put(McpConstants.ID, JSONObject.NULL);
+        body.put(McpConstants.ID, id != null ? id : JSONObject.NULL);
         body.put(McpConstants.ERROR, err);
         sendJsonResponse(statusCode, body.toString().getBytes(StandardCharsets.UTF_8), null);
     }
