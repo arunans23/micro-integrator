@@ -105,6 +105,10 @@
             <groupId>javax.el</groupId>
             <artifactId>javax.el-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.wso2.ei</groupId>
+            <artifactId>org.wso2.carbon.framework.exporter</artifactId>
+        </dependency>
 
     </dependencies>
 
@@ -293,7 +297,7 @@
                                 </bundleDef>
                                 <bundleDef>org.wso2.orbit.commons-text:commons-text:${commons-text.orbit.version}
                                 </bundleDef>
-                                <bundleDef>org.wso2.carbon:org.wso2.carbon.framework.exporter:${carbon.kernel.version}
+                                <bundleDef>org.wso2.ei:org.wso2.carbon.framework.exporter:${project.version}
                                 </bundleDef>
                                 <!--Management API-->
                                 <bundleDef>jakarta.servlet:jakarta.servlet-api:${jakarta.servlet.api.version}</bundleDef>
