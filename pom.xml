@@ -2503,7 +2503,7 @@
         <graalvm.version>25.0.2</graalvm.version>
         <icu.version>78.2</icu.version>
         <sparsebitset.version>1.3</sparsebitset.version>
-        <org.bouncycastle.bc.version>1.83</org.bouncycastle.bc.version>
+        <org.bouncycastle.bc.version>1.84</org.bouncycastle.bc.version>
         <failureaccess.version>1.0.3</failureaccess.version>
         <commons.lang.version>2.6</commons.lang.version>
         <orbit.version.json>3.0.0.wso2v8</orbit.version.json>
