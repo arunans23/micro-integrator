@@ -145,6 +145,10 @@ public class TestServerManager {
         carbonServer.serverShutdown(portOffset, false);
     }
 
+    public void stopServerSkipCoverage() throws AutomationFrameworkException {
+        carbonServer.serverShutdown(portOffset, true);
+    }
+
     void restartServer() throws AutomationFrameworkException {
 
         log.info("Preparing to restart the server ...");

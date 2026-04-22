@@ -104,4 +104,12 @@ public class CarbonServerExtension extends ExecutionListenerExtension {
             throw new RuntimeException("Exception occurred while shutdown the server", e);
         }
     }
+
+    public static void shutdownServerSkipCoverage() {
+        try {
+            serverManager.stopServerSkipCoverage();
+        } catch (AutomationFrameworkException e) {
+            throw new RuntimeException("Exception occurred while shutdown the server", e);
+        }
+    }
 }
