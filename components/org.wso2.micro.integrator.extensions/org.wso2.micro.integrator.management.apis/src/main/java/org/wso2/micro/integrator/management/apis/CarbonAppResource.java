@@ -119,6 +119,7 @@ public class CarbonAppResource extends APIResource {
         switch (httpMethod) {
             case Constants.HTTP_GET: {
                 String cappName = Utils.getPathParameter(messageContext, CAPP_NAME);
+                log.debug("Processing GET request for carbon application. Path parameter: " + cappName);
                 String param = Utils.getQueryParameter(messageContext, "carbonAppName");
                 String searchKey = Utils.getQueryParameter(messageContext, SEARCH_KEY);
                 if (Objects.nonNull(cappName)
@@ -399,8 +400,9 @@ public class CarbonAppResource extends APIResource {
                 .findFirst().orElse(null);
 
         if (Objects.isNull(faultyApp)) {
+        if (Objects.isNull(faultyApp)) {
+            log.warn("Faulty carbon application not found for name: " + cappName);
             Utils.setJsonPayLoad(axis2MessageContext,
-                    Utils.createJsonError("Faulty carbon application not found for the given name.",
                             axis2MessageContext, NOT_FOUND));
             return;
         }
