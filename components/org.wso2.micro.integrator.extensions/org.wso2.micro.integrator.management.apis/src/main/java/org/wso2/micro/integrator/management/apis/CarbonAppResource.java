@@ -400,9 +400,8 @@ public class CarbonAppResource extends APIResource {
                 .findFirst().orElse(null);
 
         if (Objects.isNull(faultyApp)) {
-        if (Objects.isNull(faultyApp)) {
-            log.warn("Faulty carbon application not found for name: " + cappName);
             Utils.setJsonPayLoad(axis2MessageContext,
+                    Utils.createJsonError("Faulty carbon application not found for the given name.",
                             axis2MessageContext, NOT_FOUND));
             return;
         }
