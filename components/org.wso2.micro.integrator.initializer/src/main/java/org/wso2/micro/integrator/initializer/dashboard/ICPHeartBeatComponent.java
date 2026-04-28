@@ -1761,6 +1761,11 @@ public class ICPHeartBeatComponent {
         appObj.addProperty("version", carbonApp.getAppVersion());
         appObj.addProperty("status", status);
 
+        if ("faulty".equals(status) && carbonApp.getErrorMessage() != null) {
+            log.debug("Adding error message for faulty Carbon App: " + carbonApp.getAppNameWithVersion());
+            appObj.addProperty("errorMessage", carbonApp.getErrorMessage());
+        }
+
         // Collect artifacts contained in this Carbon App
         JsonArray artifacts = new JsonArray();
         if (carbonApp.getAppConfig() != null &&
