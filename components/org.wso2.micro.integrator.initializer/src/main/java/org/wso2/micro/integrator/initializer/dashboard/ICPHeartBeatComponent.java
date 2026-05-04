@@ -902,7 +902,7 @@ public class ICPHeartBeatComponent {
 
     /**
      * Extracts error message from ICP error response.
-     * Expected format: {body: {message: "error message"}}
+     * Expected format: {acknowledged: false, error: true, message: "error description"}
      */
     private static String extractErrorMessage(JsonObject jsonResponse, int statusCode) {
         String defaultMessage = "HTTP " + statusCode;
@@ -910,15 +910,13 @@ public class ICPHeartBeatComponent {
             return defaultMessage;
         }
 
-        if (jsonResponse.has(JSON_FIELD_BODY)) {
-            JsonElement bodyElement = jsonResponse.get(JSON_FIELD_BODY);
-            if (bodyElement.isJsonObject()) {
-                JsonObject bodyObj = bodyElement.getAsJsonObject();
-                if (bodyObj.has(JSON_FIELD_MESSAGE)) {
-                    return bodyObj.get(JSON_FIELD_MESSAGE).getAsString();
-                }
+        if (jsonResponse.has(JSON_FIELD_MESSAGE)) {
+            JsonElement messageElement = jsonResponse.get(JSON_FIELD_MESSAGE);
+            if (messageElement.isJsonPrimitive()) {
+                return messageElement.getAsString();
             }
         }
+
         return defaultMessage;
     }
 
@@ -930,7 +928,9 @@ public class ICPHeartBeatComponent {
         try {
             HttpEntity entity = response.getEntity();
             stringResponse = EntityUtils.toString(entity, "UTF-8");
-
+            if (log.isDebugEnabled()) {
+                log.debug("Parsing ICP response with status: " + response.getStatusLine().getStatusCode());
+            }
             if (stringResponse == null || stringResponse.trim().isEmpty()) {
                 if (log.isDebugEnabled()) {
                     log.debug("ICP returned empty response");
