@@ -20,11 +20,14 @@ package org.wso2.micro.integrator.initializer.dashboard;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSyntaxException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
@@ -302,11 +305,14 @@ public class ICPHeartBeatComponent {
             try (CloseableHttpResponse response = client.execute(httpPost)) {
                 // Response is auto-closed by try-with-resources to prevent resource leaks.
                 int statusCode = response.getStatusLine().getStatusCode();
-                if (statusCode == 409) {
+                if (statusCode == HttpStatus.SC_BAD_REQUEST || statusCode == HttpStatus.SC_UNAUTHORIZED
+                        || statusCode == HttpStatus.SC_CONFLICT) {
                     JsonObject jsonResponse = getJsonResponse(response);
-                    String detail = (jsonResponse != null && jsonResponse.has("body"))
-                            ? jsonResponse.get("body").getAsString() : "no details";
-                    log.error("ICP rejected heartbeat due to environment mismatch (HTTP 409): " + detail
+                    String detail = extractErrorMessage(jsonResponse, statusCode);
+                    String errorType = statusCode == HttpStatus.SC_BAD_REQUEST ? "bad request" :
+                                      statusCode == HttpStatus.SC_UNAUTHORIZED ? "authentication failure" :
+                                      "environment mismatch";
+                    log.error("ICP rejected heartbeat due to " + errorType + " (HTTP " + statusCode + "): " + detail
                             + ". Stopping heartbeat service — reconfigure the ICP JWT key.");
                     new Thread(ICPHeartBeatComponent::stopICPHeartbeatExecutorService,
                             "ICP-Heartbeat-Stopper").start();
@@ -895,18 +901,80 @@ public class ICPHeartBeatComponent {
     }
 
     /**
+     * Extracts error message from ICP error response.
+     * Expected format: {body: {message: "error message"}}
+     */
+    private static String extractErrorMessage(JsonObject jsonResponse, int statusCode) {
+        String defaultMessage = "HTTP " + statusCode;
+        if (jsonResponse == null) {
+            return defaultMessage;
+        }
+
+        if (jsonResponse.has("body")) {
+            JsonElement bodyElement = jsonResponse.get("body");
+            if (bodyElement.isJsonObject()) {
+                JsonObject bodyObj = bodyElement.getAsJsonObject();
+                if (bodyObj.has("message")) {
+                    return bodyObj.get("message").getAsString();
+                }
+            }
+        }
+        return defaultMessage;
+    }
+
+    /**
      * Parses JSON response from HTTP response.
      */
     private static JsonObject getJsonResponse(CloseableHttpResponse response) {
+        String stringResponse = null;
         try {
             HttpEntity entity = response.getEntity();
-            String stringResponse = EntityUtils.toString(entity, "UTF-8");
-            Gson gson = new Gson();
-            return gson.fromJson(stringResponse, JsonObject.class);
-        } catch (Exception e) {
-            if (log.isDebugEnabled()) {
-                log.debug("Error parsing JSON response from ICP.", e);
+            stringResponse = EntityUtils.toString(entity, "UTF-8");
+
+            if (stringResponse == null || stringResponse.trim().isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("ICP returned empty response");
+                }
+                return null;
             }
+
+            Gson gson = new Gson();
+
+            try {
+                JsonObject jsonObject = gson.fromJson(stringResponse, JsonObject.class);
+                if (jsonObject != null) {
+                    return jsonObject;
+                }
+            } catch (JsonSyntaxException e) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Response is not a JSON object, attempting to parse as primitive");
+                }
+            }
+            try {
+                JsonElement jsonElement = gson.fromJson(stringResponse, JsonElement.class);
+                if (jsonElement != null && jsonElement.isJsonPrimitive()) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("ICP returned a primitive response, wrapping in JsonObject: " + stringResponse);
+                    }
+                    JsonObject wrappedResponse = new JsonObject();
+                    wrappedResponse.add("body", jsonElement);
+                    return wrappedResponse;
+                }
+            } catch (JsonSyntaxException e) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Response is not valid JSON, treating as plain string: " + stringResponse);
+                }
+                JsonObject wrappedResponse = new JsonObject();
+                wrappedResponse.addProperty("body", stringResponse);
+                return wrappedResponse;
+            }
+            log.error("ICP returned unexpected JSON type. Response: " +
+                    (response != null ? response.getStatusLine() : "null") + ", Body: " + stringResponse);
+            return null;
+        } catch (Exception e) {
+            log.error("Error parsing JSON response from ICP. Response: " +
+                    (response != null ? response.getStatusLine() : "null") +
+                    ", Body: " + (stringResponse != null ? stringResponse : "null"), e);
             return null;
         }
     }
@@ -978,7 +1046,7 @@ public class ICPHeartBeatComponent {
                             .map(base -> base + api.getContext() + versionSuffix)
                             .collect(Collectors.toList());
                     apiObj.addProperty("url", apiUrls.get(0));
-                    com.google.gson.JsonArray urlArray = new com.google.gson.JsonArray();
+                    JsonArray urlArray = new JsonArray();
                     apiUrls.forEach(urlArray::add);
                     apiObj.add("urls", urlArray);
                 } else {
