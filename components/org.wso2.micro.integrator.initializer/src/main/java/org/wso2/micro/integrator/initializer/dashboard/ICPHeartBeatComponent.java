@@ -218,13 +218,13 @@ public class ICPHeartBeatComponent {
         try {
             // Build full payload to calculate hash
             JsonObject fullPayload = buildFullHeartbeatPayload(false);
-            String currentHash = fullPayload.get("runtimeHash").getAsString();
+            String currentHash = fullPayload.get(FIELD_RUNTIME_HASH).getAsString();
 
             // Build delta payload
             JsonObject deltaPayload = new JsonObject();
             deltaPayload.addProperty("heartbeatVersion", HEARTBEAT_VERSION);
             deltaPayload.addProperty(Constants.RUNTIME_ID, getRuntimeId());
-            deltaPayload.addProperty("runtimeHash", currentHash);
+            deltaPayload.addProperty(FIELD_RUNTIME_HASH, currentHash);
 
             // Create timestamp in Ballerina time:Utc format [seconds, nanoseconds_fraction]
             deltaPayload.add("timestamp", createBallerinaTimestamp());
@@ -377,7 +377,7 @@ public class ICPHeartBeatComponent {
 
         // Hash (exclude timestamp for hash calculation)
         String hash = calculateHash(payload);
-        payload.addProperty("runtimeHash", hash);
+        payload.addProperty(FIELD_RUNTIME_HASH, hash);
 
         // Add timestamp if requested
         if (includeTimestamp) {
@@ -619,8 +619,8 @@ public class ICPHeartBeatComponent {
             }
 
             // Ensure runtimeHash exists
-            if (!payload.has("runtimeHash") || payload.get("runtimeHash").isJsonNull()) {
-                payload.addProperty("runtimeHash", "");
+            if (!payload.has(FIELD_RUNTIME_HASH) || payload.get(FIELD_RUNTIME_HASH).isJsonNull()) {
+                payload.addProperty(FIELD_RUNTIME_HASH, "");
                 log.warn("Missing runtimeHash, added empty string");
             }
 
@@ -670,7 +670,7 @@ public class ICPHeartBeatComponent {
             minimalPayload.addProperty("project", "default");
             minimalPayload.addProperty("component", "micro-integrator");
             minimalPayload.addProperty("version", "");
-            minimalPayload.addProperty("runtimeHash", "");
+            minimalPayload.addProperty(FIELD_RUNTIME_HASH, "");
 
             JsonObject nodeInfo = new JsonObject();
             nodeInfo.addProperty("platformName", "wso2-mi");
@@ -910,12 +910,12 @@ public class ICPHeartBeatComponent {
             return defaultMessage;
         }
 
-        if (jsonResponse.has("body")) {
-            JsonElement bodyElement = jsonResponse.get("body");
+        if (jsonResponse.has(JSON_FIELD_BODY)) {
+            JsonElement bodyElement = jsonResponse.get(JSON_FIELD_BODY);
             if (bodyElement.isJsonObject()) {
                 JsonObject bodyObj = bodyElement.getAsJsonObject();
-                if (bodyObj.has("message")) {
-                    return bodyObj.get("message").getAsString();
+                if (bodyObj.has(JSON_FIELD_MESSAGE)) {
+                    return bodyObj.get(JSON_FIELD_MESSAGE).getAsString();
                 }
             }
         }
@@ -957,7 +957,7 @@ public class ICPHeartBeatComponent {
                         log.debug("ICP returned a primitive response, wrapping in JsonObject: " + stringResponse);
                     }
                     JsonObject wrappedResponse = new JsonObject();
-                    wrappedResponse.add("body", jsonElement);
+                    wrappedResponse.add(JSON_FIELD_BODY, jsonElement);
                     return wrappedResponse;
                 }
             } catch (JsonSyntaxException e) {
@@ -965,7 +965,7 @@ public class ICPHeartBeatComponent {
                     log.debug("Response is not valid JSON, treating as plain string: " + stringResponse);
                 }
                 JsonObject wrappedResponse = new JsonObject();
-                wrappedResponse.addProperty("body", stringResponse);
+                wrappedResponse.addProperty(JSON_FIELD_BODY, stringResponse);
                 return wrappedResponse;
             }
             log.error("ICP returned unexpected JSON type. Response: " +
