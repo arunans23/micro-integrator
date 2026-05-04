@@ -312,8 +312,11 @@ public class ICPHeartBeatComponent {
                     String errorType = statusCode == HttpStatus.SC_BAD_REQUEST ? "bad request" :
                                       statusCode == HttpStatus.SC_UNAUTHORIZED ? "authentication failure" :
                                       "environment mismatch";
+                    String remediation = statusCode == HttpStatus.SC_BAD_REQUEST ? "Check heartbeat payload and MI configuration." :
+                                        statusCode == HttpStatus.SC_UNAUTHORIZED ? "Reconfigure the ICP JWT key." :
+                                        "Check environment configuration for mismatch.";
                     log.error("ICP rejected heartbeat due to " + errorType + " (HTTP " + statusCode + "): " + detail
-                            + ". Stopping heartbeat service — reconfigure the ICP JWT key.");
+                            + ". Stopping heartbeat service — " + remediation);
                     new Thread(ICPHeartBeatComponent::stopICPHeartbeatExecutorService,
                             "ICP-Heartbeat-Stopper").start();
                     return null;
