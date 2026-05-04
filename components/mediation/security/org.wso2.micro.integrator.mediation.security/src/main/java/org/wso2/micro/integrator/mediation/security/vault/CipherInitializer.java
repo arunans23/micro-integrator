@@ -55,7 +55,7 @@ public class CipherInitializer {
 	private static final String KEY_STORE = "keyStore";
 	private static final String DOT = ".";
 	private static final String ALGORITHM = "algorithm";
-	private static final String DEFAULT_ALGORITHM = "RSA";
+	private static final String DEFAULT_ALGORITHM = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
 	private static final String TRUSTED = "trusted";
 	private static final String CIPHER_TRANSFORMATION_SECRET_CONF_PROPERTY = "keystore.identity.CipherTransformation";
 	private static final String CIPHER_TRANSFORMATION_SYSTEM_PROPERTY = "org.wso2.CipherTransformation";

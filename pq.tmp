@@ -1,0 +1,69 @@
+I also want to check whether Micro Integrator still uses old algorithms which are not post quantum secure in any of the features.
+
+⏺ Explore(Audit MI codebase for non-PQC-secure algorithms)
+  ⎿  Done (39 tool uses · 87.1k tokens · 2m 22s)
+  (ctrl+o to expand)
+
+⏺ Here's what the audit found, organized by priority in production code (excluding test files and external dependencies):
+
+  ---
+  Production Code — Critical
+
+  ┌───────────────────────────────────────────────────────────┬───────────────┬─────────────────────────────────────────────┬──────────────────────────────────────┐
+  │                           File                            │   Algorithm   │                    Usage                    │                Notes                 │
+  ├───────────────────────────────────────────────────────────┼───────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ org.wso2.micro.integrator.core/.../CryptoUtil.java        │ RSA           │ Default cipher for password encrypt/decrypt │ Cipher.getInstance("RSA")            │
+  ├───────────────────────────────────────────────────────────┼───────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ ...initializer/.../transaction/security/CryptoUtil.java   │ RSA           │ Transaction count encryption                │ KeyFactory.getInstance("RSA")        │
+  ├───────────────────────────────────────────────────────────┼───────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ ...security/.../vault/utils/KeyStoreUtil.java             │ RSA + SHA-1   │ Secure vault keystore cipher                │ RSA/ECB/OAEPWithSHA-1AndMGF1Padding  │
+  ├───────────────────────────────────────────────────────────┼───────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ ...dataservices/.../auth/JWTAuthorizationProvider.java    │ SHA256withRSA │ JWT auth signature verification             │ Also falls back to SHA-1 thumbprints │
+  ├───────────────────────────────────────────────────────────┼───────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ ...server/util/PatchUtils.java                            │ MD5           │ Patch file integrity verification           │ Collision-vulnerable                 │
+  ├───────────────────────────────────────────────────────────┼───────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ ...security/.../SystemUserRoleManager.java                │ SHA1PRNG      │ Secure random generation                    │ SHA-1-based PRNG                     │
+  ├───────────────────────────────────────────────────────────┼───────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ wso2-wss4j/.../WSConstants.java                           │ RSA-SHA1      │ WS-Security default signature algorithm     │ Framework-wide default               │
+  ├───────────────────────────────────────────────────────────┼───────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
+  │ wso2-synapse/.../securevault/.../PKCS8KeyStoreLoader.java │ RSA           │ PKCS8 private key loading                   │ KeyFactory.getInstance("RSA")        │
+  └───────────────────────────────────────────────────────────┴───────────────┴─────────────────────────────────────────────┴──────────────────────────────────────┘
+
+  Production Code — Medium
+
+  ┌──────────────────────────────────────┬────────────────┬────────────────────────────────────────┐
+  │                 File                 │   Algorithm    │                 Usage                  │
+  ├──────────────────────────────────────┼────────────────┼────────────────────────────────────────┤
+  │ ...dataservices/.../DBConstants.java │ SCRAM-SHA-1    │ DB authentication constant             │
+  ├──────────────────────────────────────┼────────────────┼────────────────────────────────────────┤
+  │ wso2-wss4j/.../WSSecSignature.java   │ SHA-1          │ Default XML-DSIG digest (xmldsig#sha1) │
+  ├──────────────────────────────────────┼────────────────┼────────────────────────────────────────┤
+  │ ClientSSLSetupHandler.java           │ TLS_RSA_WITH_* │ Documented as acceptable cipher suites │
+  └──────────────────────────────────────┴────────────────┴────────────────────────────────────────┘
+
+  Notable (Test/Infra Code)
+
+  - Multiple TLS_ECDHE_RSA_* and TLS_RSA_WITH_* cipher suites in test infrastructure — not production risk but reflect assumptions about acceptable algorithms
+  - wso2-synapse/modules/core/.../PqcHttpsServer.java — a proof-of-concept already exists using ML-KEM (Kyber), Falcon, Dilithium via Bouncy Castle's PQC provider. This is not wired into
+  production
+
+  ---
+  Prioritized Recommendations
+
+  Quick wins (low effort, clear benefit):
+  - PatchUtils.java: MD5 → SHA-256. No behavior change, just stronger integrity check
+  - WSSecSignature.java: Change default digest from xmldsig#sha1 → xmldsig#sha256
+  - SystemUserRoleManager.java: SHA1PRNG → new SecureRandom() (Java will select best available)
+
+  Medium-term:
+  - KeyStoreUtil.java: RSA/ECB/OAEPWithSHA-1AndMGF1Padding → RSA/ECB/OAEPWithSHA-256AndMGF1Padding — same RSA, stronger hash
+  - JWTAuthorizationProvider.java: remove SHA-1 thumbprint fallback
+  - WSConstants.java: change RSA default to RSA_SHA256 or RSA_SHA512
+
+  Long-term (needs design work):
+  - CryptoUtil.java RSA encryption — migrate to hybrid encryption (RSA-KEM + AES-256 or ML-KEM once standardized)
+  - Transaction encryption — same as above
+  - TLS: enforce TLS 1.3 + disable TLS_RSA_WITH_* cipher suites; prefer TLS_AES_256_GCM_SHA384
+
+  The PqcHttpsServer.java POC is already using the right libraries (BC PQC). The long-term path is wiring ML-KEM / ML-DSA (NIST FIPS 203/204) through the existing BC provider infrastructure
+   you've already set up.

@@ -142,7 +142,7 @@ public class CryptoUtil {
                     if (log.isDebugEnabled()) {
                         log.debug("Default Cipher transformation for encryption : RSA");
                     }
-                    keyStoreCipher = Cipher.getInstance("RSA");
+                    keyStoreCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
                 }
 
                 keyStoreCipher.init(Cipher.ENCRYPT_MODE, certs[0].getPublicKey());
@@ -254,7 +254,7 @@ public class CryptoUtil {
                 } else {
                     // This will reach if the user have removed org.wso2.CipherTransformation from the carbon.properties
                     // or delete carbon.properties file
-                    keyStoreCipher = Cipher.getInstance("RSA");
+                    keyStoreCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
                 }
 
                 keyStoreCipher.init(Cipher.DECRYPT_MODE, privateKey);
@@ -311,7 +311,7 @@ public class CryptoUtil {
                 if (cipherTransformation != null) {
                     keyStoreCipher = Cipher.getInstance(cipherTransformation);
                 } else {
-                    keyStoreCipher = Cipher.getInstance("RSA");
+                    keyStoreCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
                 }
 
                 keyStoreCipher.init(Cipher.DECRYPT_MODE, privateKey);

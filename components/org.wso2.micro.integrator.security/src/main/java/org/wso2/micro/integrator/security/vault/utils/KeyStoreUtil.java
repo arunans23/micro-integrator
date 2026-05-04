@@ -92,11 +92,6 @@ public class KeyStoreUtil {
     }
 
     private static String getCipherAlgorithm() {
-        String provider = System.getProperty(JCE_PROVIDER);
-        if (org.apache.commons.lang.StringUtils.isNotEmpty(provider)) {
-            return "RSA/ECB/OAEPWithSHA-1AndMGF1Padding";
-        } else {
-            return "RSA/ECB/OAEPwithSHA1andMGF1Padding";
-        }
+        return "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
     }
 }

@@ -463,7 +463,7 @@ public class UserStoreConfigXMLProcessor {
         } else {
             // If reach here, user have removed org.wso2.CipherTransformation property or carbon.properties file
             // hence RSA is considered as default transformation
-            keyStoreCipher = Cipher.getInstance("RSA", getJceProvider());
+            keyStoreCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding", getJceProvider());
         }
         keyStoreCipher.init(Cipher.DECRYPT_MODE, privateKey);
         return new String(keyStoreCipher.doFinal(cipherTextBytes), Charset.defaultCharset());
