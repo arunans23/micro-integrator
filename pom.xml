@@ -2143,7 +2143,7 @@
         <version.jaxb.api>2.4.0-b180830.0359</version.jaxb.api>
         <com.sun.jaxb.version>2.3.0</com.sun.jaxb.version>
         <com.sun.jaxb.impl.version>2.3.1</com.sun.jaxb.impl.version>
-        <synapse.version>4.1.0-wso2v42</synapse.version>
+        <synapse.version>4.1.0-wso2v43</synapse.version>
         <imp.pkg.version.synapse>[4.1.0, 4.2.0)</imp.pkg.version.synapse>
         <carbon.crypto.version>1.1.3</carbon.crypto.version>
         <carbon.crypto.api.imp.pkg.version.range>[1.1.0,1.2.0)</carbon.crypto.api.imp.pkg.version.range>
@@ -2172,7 +2172,7 @@
 
         <carbon.analytics.common.version>5.2.67</carbon.analytics.common.version>
         <carbon.analytics.common.imp.pkg.version>[5.2.0, 6.0.0)</carbon.analytics.common.imp.pkg.version>
-        <fasterxml.jackson.version>2.21.1</fasterxml.jackson.version>
+        <fasterxml.jackson.version>2.21.3</fasterxml.jackson.version>
         <fasterxml.jackson.datatype.version>2.21.0</fasterxml.jackson.datatype.version>
         <fasterxml.jackson.annotations.version>2.21</fasterxml.jackson.annotations.version>
         <com.hubspot.immutables.version>1.11.3</com.hubspot.immutables.version>
@@ -2188,11 +2188,11 @@
         <xmlsec.version>1.5.6-wso2v2</xmlsec.version>
         <jsonassert.version>1.5.1</jsonassert.version>
         <saml.common.util.version.range>[1.0.0,2.0.0)</saml.common.util.version.range>
-        <bouncycastle.orbit.version>1.83.0.wso2v1</bouncycastle.orbit.version>
+        <bouncycastle.orbit.version>1.84.0.wso2v1</bouncycastle.orbit.version>
         <orbit.version.poi.ooxml>5.5.1.wso2v1</orbit.version.poi.ooxml>
         <org.wso2.json.version>3.0.0.wso2v8</org.wso2.json.version>
         <version.equinox.http.servlet>1.8.100</version.equinox.http.servlet>
-        <version.tomcat>11.0.18</version.tomcat>
+        <version.tomcat>11.0.21</version.tomcat>
         <orbit.version.tomcat.jsp.api>${version.tomcat}.wso2v1</orbit.version.tomcat.jsp.api>
         <orbit.version.tomcat.el.api>${version.tomcat}.wso2v1</orbit.version.tomcat.el.api>
         <orbit.version.tomcat.servlet.api>${version.tomcat}.wso2v1</orbit.version.tomcat.servlet.api>
@@ -2232,7 +2232,7 @@
         <javasysmon.version>0.3.3.wso2v1</javasysmon.version>
         <version.eclipse.ecj>4.4.2</version.eclipse.ecj>
         <version.com.google.code.gson>2.13.2</version.com.google.code.gson>
-        <bcprov-jdk18on.version>1.83</bcprov-jdk18on.version>
+        <bcprov-jdk18on.version>1.84</bcprov-jdk18on.version>
         <bcpg-jdk18on.version>1.84</bcpg-jdk18on.version>
         <bcutil-jdk18on.version>1.83</bcutil-jdk18on.version>
         <tukaani.xz.version>1.9</tukaani.xz.version>
