@@ -2107,7 +2107,7 @@
         <version.apache.felix.gogo.command>1.1.2</version.apache.felix.gogo.command>
         <version.equinox.p2.publisher.eclipse>1.5.0</version.equinox.p2.publisher.eclipse>
         <version.equinox.p2.publisher>1.6.0</version.equinox.p2.publisher>
-        <version.equinox.p2.transport.ecf>1.2.0</version.equinox.p2.transport.ecf>
+        <version.equinox.p2.transport.ecf>1.4.600</version.equinox.p2.transport.ecf>
 
         <!-- javax.xml.soap version -->
         <javax.xml.soap-api.version>1.4.0</javax.xml.soap-api.version>
@@ -2260,8 +2260,8 @@
         <axis2.mar.maven.plugin>1.5.2</axis2.mar.maven.plugin>
 
         <!--PAX Logging related dependency versions-->
-        <pax.logging.api.version>2.3.2-wso2v1</pax.logging.api.version>
-        <pax.logging.log4j2.version>2.3.2-wso2v2</pax.logging.log4j2.version>
+        <pax.logging.api.version>2.3.2-wso2v3</pax.logging.api.version>
+        <pax.logging.log4j2.version>2.3.2-wso2v3</pax.logging.log4j2.version>
         <org.apache.commons.logging.version>1.1.1</org.apache.commons.logging.version>
         <version.eclipse.equinox.cm>1.6.300</version.eclipse.equinox.cm>
         <version.eclipse.equinox.event>1.5.100</version.eclipse.equinox.event>
