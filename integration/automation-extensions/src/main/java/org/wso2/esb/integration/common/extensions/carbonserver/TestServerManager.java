@@ -146,6 +146,7 @@ public class TestServerManager {
     }
 
     public void stopServerSkipCoverage() throws AutomationFrameworkException {
+        log.info("Stopping server with coverage skip enabled");
         carbonServer.serverShutdown(portOffset, true);
     }
 
