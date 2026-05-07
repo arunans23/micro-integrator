@@ -168,7 +168,10 @@ public abstract class CAppPriorityDeploymentTestBase extends ESBIntegrationTest 
                 "repository" + File.separator + "deployment" + File.separator + "server" + File.separator
                         + "carbonapps");
         for (String capp : cAppNames) {
-            new File(carbonappsDir, capp + ".car").delete();
+            File carFile = new File(carbonappsDir, capp + ".car");
+            if (carFile.exists() && !carFile.delete()) {
+                log.warn("Failed to delete CApp file during teardown: " + carFile.getAbsolutePath());
+            }
         }
     }
 
