@@ -79,6 +79,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLInputFactory;
@@ -466,7 +467,7 @@ public class CappDeployer extends AbstractDeployer {
             for (String cAppFileName : toRetry) {
                 String artifactPath = cAppDir + File.separator + cAppFileName;
                 try {
-                    deployCarbonApps(artifactPath);
+                    deployCarbonApps(artifactPath, false);
                 } catch (Exception e) {
                     log.error("Error while retrying deployment of carbon application: " + artifactPath, e);
                 }
@@ -1191,38 +1192,109 @@ public class CappDeployer extends AbstractDeployer {
      *   <li>{@code registry/resource}     - registry resource</li>
      * </ul>
      *
-     * @param carFile - the .car file to inspect
-     * @return true if the CApp contains at least one high-priority artifact type, false otherwise
+     * <p>If {@code carFile} is not a regular file on disk (e.g., a path of the form
+     * {@code A.car/dependencies/B.car} representing a .car embedded inside another .car),
+     * the check is delegated to {@link #isHighPriorityEmbeddedCApp(File)}.
+     *
+     * @param carFile the .car file to inspect
+     * @return {@code true} if the CApp contains at least one high-priority artifact type, {@code false} otherwise
      */
     private boolean isHighPriorityCApp(File carFile) {
-        try (ZipFile zipFile = new ZipFile(carFile)) {
-            Enumeration<? extends ZipEntry> entries = zipFile.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                // Look only for artifact.xml files inside artifact directories (e.g., <artifact-dir>/artifact.xml).
-                // The top-level descriptor is named "artifacts.xml" so the "/" prefix check correctly excludes it.
-                if (!entry.isDirectory() && entry.getName().endsWith("/" + ARTIFACT_FILE)) {
-                    try (InputStream is = zipFile.getInputStream(entry)) {
-                        OMElement artElement = secureXmlBuilder(is).getDocumentElement();
-                        if (Artifact.ARTIFACT.equals(artElement.getLocalName())) {
-                            String artifactType = artElement.getAttributeValue(new QName("type"));
-                            if (artifactType != null && HIGH_PRIORITY_TYPES.contains(artifactType)) {
-                                if (log.isDebugEnabled()) {
-                                    log.debug("Found high-priority artifact type '" + artifactType
-                                            + "' in CApp: " + carFile.getName()
-                                            + " [entry: " + entry.getName() + "]");
-                                }
-                                return true;
-                            }
-                        }
-                    } catch (XMLStreamException | OMException e) {
-                        log.warn("Error parsing artifact.xml entry '" + entry.getName()
-                                + "' in CApp: " + carFile.getName() + ". Skipping entry.", e);
-                    }
-                }
-            }
+        if (!carFile.isFile()) {
+            // Path like /path/A.car/dependencies/B.car — nested car inside another car
+            return isHighPriorityEmbeddedCApp(carFile);
+        }
+        try (ZipInputStream zipIn = new ZipInputStream(new FileInputStream(carFile))) {
+            return containsHighPriorityArtifact(zipIn, carFile.getName());
         } catch (IOException e) {
             log.warn("Error reading CApp file: " + carFile.getName() + ". Treating as low priority.", e);
+        }
+        return false;
+    }
+
+    /**
+     * Determines whether a .car file embedded inside another .car is a high-priority CApp.
+     *
+     * <p>Handles virtual paths of the form {@code /path/to/A.car/dependencies/B.car}, where
+     * {@code B.car} is a zip entry inside {@code A.car} rather than a standalone file on disk.
+     * The outer archive is opened, the inner entry is located by name, and its contents are
+     * scanned via {@link #containsHighPriorityArtifact(ZipInputStream, String)}.
+     *
+     * @param embeddedCarFile a {@link File} whose path encodes the outer .car and the inner entry name
+     * @return {@code true} if the embedded CApp contains at least one high-priority artifact type,
+     *         {@code false} if the entry cannot be resolved or contains no high-priority artifacts
+     */
+    private boolean isHighPriorityEmbeddedCApp(File embeddedCarFile) {
+        String absPath = embeddedCarFile.getAbsolutePath();
+        // Outer car ends at the first ".car" segment; remainder is the entry path inside it.
+        String marker = ".car" + File.separator;
+        int markerIdx = absPath.indexOf(marker);
+        if (markerIdx < 0) {
+            log.warn("CApp not found and path does not match nested pattern: " + absPath + ". Treating as low priority.");
+            return false;
+        }
+        File outerCar = new File(absPath.substring(0, markerIdx + 4)); // +4 for ".car"
+        // Zip entries always use '/' regardless of OS separator
+        String innerEntryName = absPath.substring(markerIdx + marker.length()).replace(File.separatorChar, '/');
+
+        if (!outerCar.isFile()) {
+            log.warn("Outer CApp not found: " + outerCar.getAbsolutePath() + ". Treating as low priority.");
+            return false;
+        }
+        try (ZipFile outerZip = new ZipFile(outerCar)) {
+            ZipEntry innerCarEntry = outerZip.getEntry(innerEntryName);
+            if (innerCarEntry == null) {
+                log.warn("Nested CApp entry '" + innerEntryName + "' not found in: "
+                        + outerCar.getName() + ". Treating as low priority.");
+                return false;
+            }
+            try (InputStream innerCarStream = outerZip.getInputStream(innerCarEntry);
+                 ZipInputStream innerZip = new ZipInputStream(innerCarStream)) {
+                return containsHighPriorityArtifact(innerZip, embeddedCarFile.getName());
+            }
+        } catch (IOException e) {
+            log.warn("Error reading nested CApp: " + absPath + ". Treating as low priority.", e);
+        }
+        return false;
+    }
+
+    /**
+     * Scans a {@link ZipInputStream} sequentially for {@code artifact.xml} entries and returns
+     * {@code true} as soon as one declares a high-priority artifact type.
+     *
+     * <p>Only entries whose name ends with {@code /<artifact-dir>/artifact.xml} are inspected;
+     * the top-level {@code artifacts.xml} descriptor is excluded by the leading {@code "/"} check.
+     *
+     * @param zipIn    the zip stream to scan; the caller is responsible for closing it
+     * @param cappName the CApp name used in log messages
+     * @return {@code true} if a high-priority artifact type is found, {@code false} otherwise
+     * @throws IOException if the stream cannot be read
+     */
+    private boolean containsHighPriorityArtifact(ZipInputStream zipIn, String cappName) throws IOException {
+        ZipEntry entry;
+        while ((entry = zipIn.getNextEntry()) != null) {
+            // Look only for artifact.xml files inside artifact directories (e.g., <artifact-dir>/artifact.xml).
+            // The top-level descriptor is named "artifacts.xml" so the "/" prefix check correctly excludes it.
+            if (!entry.isDirectory() && entry.getName().endsWith("/" + ARTIFACT_FILE)) {
+                try {
+                    OMElement artElement = secureXmlBuilder(zipIn).getDocumentElement();
+                    if (Artifact.ARTIFACT.equals(artElement.getLocalName())) {
+                        String artifactType = artElement.getAttributeValue(new QName("type"));
+                        if (artifactType != null && HIGH_PRIORITY_TYPES.contains(artifactType)) {
+                            if (log.isDebugEnabled()) {
+                                log.debug("Found high-priority artifact type '" + artifactType
+                                        + "' in CApp: " + cappName
+                                        + " [entry: " + entry.getName() + "]");
+                            }
+                            return true;
+                        }
+                    }
+                } catch (XMLStreamException | OMException e) {
+                    log.warn("Error parsing artifact.xml entry '" + entry.getName()
+                            + "' in CApp: " + cappName + ". Skipping entry.", e);
+                }
+            }
+            zipIn.closeEntry();
         }
         return false;
     }
