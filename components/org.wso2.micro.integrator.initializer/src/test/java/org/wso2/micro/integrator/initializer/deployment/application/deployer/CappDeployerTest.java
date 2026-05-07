@@ -43,6 +43,9 @@ import java.util.zip.ZipOutputStream;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.wso2.micro.integrator.initializer.utils.DeployerUtilTest.writeDescriptorToExistingCarFile;
+
+import org.wso2.micro.integrator.initializer.utils.DeployerUtilTest;
 
 /**
  * Unit tests for {@link CappDeployer}.
@@ -59,12 +62,14 @@ import static org.junit.Assert.assertTrue;
  */
 public class CappDeployerTest {
 
-    private static final String TEMP_DIR = System.getProperty("java.io.tmpdir");
     private static final String PRIORITY_CONFIG_KEY = "server.enable_priority_deployment";
     private static final String RETRY_COUNT_CONFIG_KEY = "server.priority_deployment_retry_count";
 
     /** Tracks all temporary .car files created during a test so they can be cleaned up. */
     private final List<File> tempFiles = new ArrayList<>();
+
+    /** Dedicated temp directory for dependency-ordering tests; contains only the test CARs. */
+    private File tempCAppDir;
 
     @Before
     public void setUp() throws Exception {
@@ -75,6 +80,9 @@ public class CappDeployerTest {
         if (parsedConfigsField.get(null) == null) {
             parsedConfigsField.set(null, new HashMap<>());
         }
+        tempCAppDir = File.createTempFile("cappdir", "");
+        tempCAppDir.delete();
+        tempCAppDir.mkdir();
     }
 
     @After
@@ -83,6 +91,15 @@ public class CappDeployerTest {
             Files.deleteIfExists(file.toPath());
         }
         tempFiles.clear();
+        if (tempCAppDir != null && tempCAppDir.exists()) {
+            File[] entries = tempCAppDir.listFiles();
+            if (entries != null) {
+                for (File f : entries) {
+                    f.delete();
+                }
+            }
+            tempCAppDir.delete();
+        }
         // Reset static state that the retry tests may have modified.
         setStaticField("faultyCapps", new ArrayList<>());
         setStaticField("faultyCAppObjects", new ArrayList<>());
@@ -108,7 +125,7 @@ public class CappDeployerTest {
      * @return the created temporary {@link File}
      */
     private File createCarFile(String fileName, String... artifactTypes) throws IOException {
-        File carFile = new File(TEMP_DIR, fileName);
+        File carFile = new File(tempCAppDir, fileName);
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(carFile))) {
             for (int i = 0; i < artifactTypes.length; i++) {
                 // Directory entry (artifact dir)
@@ -139,7 +156,7 @@ public class CappDeployerTest {
     /** Creates a {@link CappDeployer} with the shared temp directory set as the CApp directory. */
     private CappDeployer createDeployer() {
         CappDeployer deployer = new CappDeployer();
-        deployer.setDirectory(TEMP_DIR);
+        deployer.setDirectory(tempCAppDir.getAbsolutePath());
         return deployer;
     }
 
@@ -387,7 +404,7 @@ public class CappDeployerTest {
     public void testNonExistentCarFileTreatedAsLowPriority() throws IOException {
         enablePriorityDeployment();
         // This file is never created on disk; it should be treated as low priority.
-        File missing   = new File(TEMP_DIR, "missing-app.car");
+        File missing   = new File(tempCAppDir, "missing-app.car");
         File connector = createCarFile("connector-app.car", "synapse/lib");
 
         List<DeploymentFileData> files = new ArrayList<>();
@@ -408,7 +425,7 @@ public class CappDeployerTest {
     public void testCarFileWithNoArtifactXmlTreatedAsLowPriority() throws IOException {
         enablePriorityDeployment();
         // Create an empty .car archive (no entries)
-        File empty     = new File(TEMP_DIR, "empty-app.car");
+        File empty     = new File(tempCAppDir, "empty-app.car");
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(empty))) {
             // intentionally left empty
         }
@@ -722,7 +739,7 @@ public class CappDeployerTest {
      */
     private File createCarFileWithNamedArtifacts(String fileName, String[] artifactNames,
                                                   String[] artifactTypes) throws IOException {
-        File carFile = new File(TEMP_DIR, fileName);
+        File carFile = new File(tempCAppDir, fileName);
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(carFile))) {
             for (int i = 0; i < artifactNames.length; i++) {
                 String dirEntry = artifactNames[i] + "_1.0.0/";
@@ -773,7 +790,7 @@ public class CappDeployerTest {
             innerCarBytes = baos.toByteArray();
         }
 
-        File outerCar = new File(TEMP_DIR, outerFileName);
+        File outerCar = new File(tempCAppDir, outerFileName);
         try (ZipOutputStream outerZos = new ZipOutputStream(new FileOutputStream(outerCar))) {
             // Zip entries always use '/' as separator regardless of OS
             outerZos.putNextEntry(new ZipEntry(innerEntryPath.replace(File.separatorChar, '/')));
@@ -920,7 +937,7 @@ public class CappDeployerTest {
     public void testEmbeddedCarWithNonExistentOuterCarIsLowPriority() throws IOException {
         enablePriorityDeployment();
         // Synthetic path where the outer .car file is never created on disk
-        File missingEmbedded = new File(TEMP_DIR + File.separator + "nonexistent.car"
+        File missingEmbedded = new File(tempCAppDir.getAbsolutePath() + File.separator + "nonexistent.car"
                 + File.separator + "dependencies" + File.separator + "inner.car");
         File connector = createCarFile("connector-app.car", "synapse/lib");
 
@@ -943,7 +960,7 @@ public class CappDeployerTest {
     @Test
     public void testEmbeddedCarWithMissingInnerEntryIsLowPriority() throws IOException {
         enablePriorityDeployment();
-        File outerCar = new File(TEMP_DIR, "empty-outer.car");
+        File outerCar = new File(tempCAppDir, "empty-outer.car");
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(outerCar))) {
             // intentionally empty — no inner entries
         }
@@ -973,7 +990,7 @@ public class CappDeployerTest {
     public void testEmbeddedCarPathWithoutCarMarkerIsLowPriority() throws IOException {
         enablePriorityDeployment();
         // A path that does not exist and has no ".car/" segment
-        File badPath = new File(TEMP_DIR + File.separator + "some-dir"
+        File badPath = new File(tempCAppDir.getAbsolutePath() + File.separator + "some-dir"
                 + File.separator + "inner.car");
         File connector = createCarFile("connector-app.car", "synapse/lib");
 
@@ -1013,7 +1030,7 @@ public class CappDeployerTest {
             innerZos.finish();
             innerCarBytes = baos.toByteArray();
         }
-        File outerCar = new File(TEMP_DIR, "fat-http-only.car");
+        File outerCar = new File(tempCAppDir, "fat-http-only.car");
         try (ZipOutputStream outerZos = new ZipOutputStream(new FileOutputStream(outerCar))) {
             outerZos.putNextEntry(new ZipEntry("dependencies/inner-http.car"));
             outerZos.write(innerCarBytes);
@@ -1090,7 +1107,7 @@ public class CappDeployerTest {
     @Test
     public void testRetryFaultyCAppsHandlesEmbeddedCarObjects() throws Exception {
         CarbonApplication embeddedApp = new CarbonApplication();
-        embeddedApp.setAppFilePath(TEMP_DIR + File.separator + "outer.car"
+        embeddedApp.setAppFilePath(tempCAppDir.getAbsolutePath() + File.separator + "outer.car"
                 + File.separator + "dependencies" + File.separator + "inner.car");
         embeddedApp.setEmbeddedCAR(true);
 
@@ -1115,7 +1132,7 @@ public class CappDeployerTest {
     @Test
     public void testRetryFaultyCAppsFallsBackToFileNameWhenObjectsMissing() throws Exception {
         CarbonApplication app = new CarbonApplication();
-        app.setAppFilePath(TEMP_DIR + File.separator + "first.car");
+        app.setAppFilePath(tempCAppDir.getAbsolutePath() + File.separator + "first.car");
         app.setEmbeddedCAR(false);
 
         // faultyCapps has two entries but faultyCAppObjects has only one
@@ -1128,5 +1145,301 @@ public class CappDeployerTest {
 
         assertTrue("faultyCapps must be cleared", CappDeployer.getFaultyCapps().isEmpty());
         assertTrue("faultyCAppObjects must be cleared", CappDeployer.getFaultyCAppObjects().isEmpty());
+    }
+
+    // -------------------------------------------------------------------------
+    // Dependency test infrastructure
+    // -------------------------------------------------------------------------
+
+    /** Creates a {@link CappDeployer} pointing at {@link #tempCAppDir} for dependency tests. */
+    private CappDeployer createDepDeployer() {
+        CappDeployer deployer = new CappDeployer();
+        deployer.setDirectory(tempCAppDir.getAbsolutePath());
+        return deployer;
+    }
+
+    /**
+     * Creates a minimal .car file inside {@link #tempCAppDir} for dependency-ordering tests.
+     * The archive contains {@code artifacts.xml} and {@code metadata.xml} but no
+     * {@code descriptor.xml} — call {@link DeployerUtilTest#writeDescriptorToExistingCarFile}
+     * to add one afterwards.
+     */
+    private File createDepCarFile(String name) throws IOException {
+        return DeployerUtilTest.createCarFile(tempCAppDir, name);
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: dependency-based ordering (sortByDependencyOrderWithFallback)
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testSort_AlphabeticalOrderWhenDescriptorMissing() throws IOException {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+        CappDeployer deployer = createDepDeployer();
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carA, deployer));
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carC, deployer));
+
+        deployer.sort(files, 0, files.size());
+
+        assertEquals("a.car", files.get(0).getFile().getName());
+        assertEquals("b.car", files.get(1).getFile().getName());
+        assertEquals("c.car", files.get(2).getFile().getName());
+    }
+
+    @Test
+    public void testSort_DependencyOrderWhenDescriptorPresentWithoutDependencies() throws Exception {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+
+        writeDescriptorToExistingCarFile(carA, "group", "a", "1.0.0");
+        writeDescriptorToExistingCarFile(carB, "group", "b", "1.0.0");
+        writeDescriptorToExistingCarFile(carC, "group", "c", "1.0.0");
+
+        CappDeployer deployer = createDepDeployer();
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carA, deployer));
+        files.add(new DeploymentFileData(carC, deployer));
+
+        deployer.sort(files, 0, files.size());
+
+        assertEquals("a.car", files.get(0).getFile().getName());
+        assertEquals("b.car", files.get(1).getFile().getName());
+        assertEquals("c.car", files.get(2).getFile().getName());
+    }
+
+    @Test
+    public void testSort_DependencyOrderWhenDescriptorPresentWithDependencies() throws Exception {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+
+        // A depends on B, B depends on C, C has no dependencies
+        String depB = "<dependency groupId=\"com.example\" artifactId=\"b\" version=\"1.0.0\" type=\"car\"/>";
+        String depC = "<dependency groupId=\"com.example\" artifactId=\"c\" version=\"1.0.0\" type=\"car\"/>";
+
+        writeDescriptorToExistingCarFile(carA, "com.example", "a", "1.0.0", depB);
+        writeDescriptorToExistingCarFile(carB, "com.example", "b", "1.0.0", depC);
+        writeDescriptorToExistingCarFile(carC, "com.example", "c", "1.0.0");
+
+        CappDeployer deployer = createDepDeployer();
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carA, deployer));
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carC, deployer));
+
+        deployer.sort(files, 0, files.size());
+
+        assertEquals("c.car", files.get(0).getFile().getName());
+        assertEquals("b.car", files.get(1).getFile().getName());
+        assertEquals("a.car", files.get(2).getFile().getName());
+    }
+
+    @Test
+    public void testSort_DependencyPresentButCarIdDiffersFromFileName() throws Exception {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+
+        String depB = "<dependency groupId=\"com.example\" artifactId=\"carB\" version=\"1.0.0\" type=\"car\"/>";
+        String depC = "<dependency groupId=\"com.example\" artifactId=\"carC\" version=\"1.0.0\" type=\"car\"/>";
+
+        writeDescriptorToExistingCarFile(carA, "com.example", "carA", "1.0.0", depB);
+        writeDescriptorToExistingCarFile(carB, "com.example", "carB", "1.0.0", depC);
+        writeDescriptorToExistingCarFile(carC, "com.example", "carC", "1.0.0");
+
+        CappDeployer deployer = createDepDeployer();
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carA, deployer));
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carC, deployer));
+
+        deployer.sort(files, 0, files.size());
+
+        assertEquals("c.car", files.get(0).getFile().getName());
+        assertEquals("b.car", files.get(1).getFile().getName());
+        assertEquals("a.car", files.get(2).getFile().getName());
+    }
+
+    @Test
+    public void testSort_SubsetOfFiles() throws Exception {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+        File carD = createDepCarFile("d.car");
+        File carE = createDepCarFile("e.car");
+
+        writeDescriptorToExistingCarFile(carA, "group", "a", "1.0.0");
+        writeDescriptorToExistingCarFile(carB, "group", "b", "1.0.0");
+        writeDescriptorToExistingCarFile(carC, "group", "c", "1.0.0");
+        writeDescriptorToExistingCarFile(carD, "group", "d", "1.0.0");
+        writeDescriptorToExistingCarFile(carE, "group", "e", "1.0.0");
+
+        CappDeployer deployer = createDepDeployer();
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carE, deployer));
+        files.add(new DeploymentFileData(carD, deployer));
+        files.add(new DeploymentFileData(carC, deployer));
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carA, deployer));
+
+        // Only sort the middle three (carC, carB, carA)
+        deployer.sort(files, 2, 5);
+
+        assertEquals("e.car", files.get(0).getFile().getName());
+        assertEquals("d.car", files.get(1).getFile().getName());
+        assertEquals("a.car", files.get(2).getFile().getName());
+        assertEquals("b.car", files.get(3).getFile().getName());
+        assertEquals("c.car", files.get(4).getFile().getName());
+    }
+
+    @Test
+    public void testSort_SubsetWithDependencies() throws Exception {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+        File carD = createDepCarFile("d.car");
+        File carE = createDepCarFile("e.car");
+
+        // A depends on B, B depends on C, C/D/E have no dependencies
+        String depB = "<dependency groupId=\"com.example\" artifactId=\"b\" version=\"1.0.0\" type=\"car\"/>";
+        String depC = "<dependency groupId=\"com.example\" artifactId=\"c\" version=\"1.0.0\" type=\"car\"/>";
+
+        writeDescriptorToExistingCarFile(carA, "com.example", "a", "1.0.0", depB);
+        writeDescriptorToExistingCarFile(carB, "com.example", "b", "1.0.0", depC);
+        writeDescriptorToExistingCarFile(carC, "com.example", "c", "1.0.0");
+        writeDescriptorToExistingCarFile(carD, "com.example", "d", "1.0.0");
+        writeDescriptorToExistingCarFile(carE, "com.example", "e", "1.0.0");
+
+        CappDeployer deployer = createDepDeployer();
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carE, deployer));
+        files.add(new DeploymentFileData(carD, deployer));
+        files.add(new DeploymentFileData(carA, deployer));
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carC, deployer));
+
+        // Only sort the middle three (carA, carB, carC) which have dependencies
+        deployer.sort(files, 2, 5);
+
+        assertEquals("e.car", files.get(0).getFile().getName());
+        assertEquals("d.car", files.get(1).getFile().getName());
+        assertEquals("c.car", files.get(2).getFile().getName());
+        assertEquals("b.car", files.get(3).getFile().getName());
+        assertEquals("a.car", files.get(4).getFile().getName());
+    }
+
+    @Test
+    public void testSort_DependencyInDirButNotInFilesList() throws Exception {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+        File carD = createDepCarFile("d.car"); // present in dir but not in files list
+
+        // A depends on B, B depends on D (not in files list), C has no dependencies
+        String depB = "<dependency groupId=\"com.example\" artifactId=\"b\" version=\"1.0.0\" type=\"car\"/>";
+        String depD = "<dependency groupId=\"com.example\" artifactId=\"d\" version=\"1.0.0\" type=\"car\"/>";
+
+        writeDescriptorToExistingCarFile(carA, "com.example", "a", "1.0.0", depB);
+        writeDescriptorToExistingCarFile(carB, "com.example", "b", "1.0.0", depD);
+        writeDescriptorToExistingCarFile(carC, "com.example", "c", "1.0.0");
+        writeDescriptorToExistingCarFile(carD, "com.example", "d", "1.0.0");
+
+        CappDeployer deployer = createDepDeployer();
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carA, deployer));
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carC, deployer));
+
+        deployer.sort(files, 0, files.size());
+
+        // C first (no deps), then B (dep D not in list), then A (depends on B)
+        assertEquals("c.car", files.get(0).getFile().getName());
+        assertEquals("b.car", files.get(1).getFile().getName());
+        assertEquals("a.car", files.get(2).getFile().getName());
+    }
+
+    @Test
+    public void testSort_MixedDescriptorPresence() throws Exception {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+
+        // Only carA and carC have descriptor.xml; carB does not.
+        // Because not all CApps have a descriptor, the sort falls back to alphabetical order.
+        String depC = "<dependency groupId=\"group\" artifactId=\"c\" version=\"1.0.0\" type=\"car\"/>";
+        writeDescriptorToExistingCarFile(carA, "group", "a", "1.0.0", depC);
+        writeDescriptorToExistingCarFile(carC, "group", "c", "1.0.0");
+
+        CappDeployer deployer = createDepDeployer();
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carC, deployer));
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carA, deployer));
+
+        deployer.sort(files, 0, files.size());
+
+        assertEquals("a.car", files.get(0).getFile().getName());
+        assertEquals("b.car", files.get(1).getFile().getName());
+        assertEquals("c.car", files.get(2).getFile().getName());
+    }
+
+    @Test
+    public void testSort_CyclicDependency() throws Exception {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+
+        // A→B→C→A (cycle); sort must fall back to alphabetical order
+        String depB = "<dependency groupId=\"com.example\" artifactId=\"b\" version=\"1.0.0\" type=\"car\"/>";
+        String depC = "<dependency groupId=\"com.example\" artifactId=\"c\" version=\"1.0.0\" type=\"car\"/>";
+        String depA = "<dependency groupId=\"com.example\" artifactId=\"a\" version=\"1.0.0\" type=\"car\"/>";
+
+        writeDescriptorToExistingCarFile(carA, "com.example", "a", "1.0.0", depB);
+        writeDescriptorToExistingCarFile(carB, "com.example", "b", "1.0.0", depC);
+        writeDescriptorToExistingCarFile(carC, "com.example", "c", "1.0.0", depA);
+
+        CappDeployer deployer = createDepDeployer();
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carC, deployer));
+        files.add(new DeploymentFileData(carA, deployer));
+
+        deployer.sort(files, 0, files.size());
+
+        assertEquals("a.car", files.get(0).getFile().getName());
+        assertEquals("b.car", files.get(1).getFile().getName());
+        assertEquals("c.car", files.get(2).getFile().getName());
+    }
+
+    @Test
+    public void testSort_MissingDependencyAmongAvailableCApps() throws Exception {
+        File carA = createDepCarFile("a.car");
+        File carB = createDepCarFile("b.car");
+        File carC = createDepCarFile("c.car");
+
+        // A depends on X which does not exist; sort must fall back to alphabetical order
+        String depX = "<dependency groupId=\"com.example\" artifactId=\"x\" version=\"1.0.0\" type=\"car\"/>";
+        writeDescriptorToExistingCarFile(carA, "com.example", "a", "1.0.0", depX);
+        writeDescriptorToExistingCarFile(carB, "com.example", "b", "1.0.0");
+        writeDescriptorToExistingCarFile(carC, "com.example", "c", "1.0.0");
+
+        CappDeployer deployer = createDepDeployer();
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(new DeploymentFileData(carA, deployer));
+        files.add(new DeploymentFileData(carB, deployer));
+        files.add(new DeploymentFileData(carC, deployer));
+
+        deployer.sort(files, 0, files.size());
+
+        assertEquals("a.car", files.get(0).getFile().getName());
+        assertEquals("b.car", files.get(1).getFile().getName());
+        assertEquals("c.car", files.get(2).getFile().getName());
     }
 }
