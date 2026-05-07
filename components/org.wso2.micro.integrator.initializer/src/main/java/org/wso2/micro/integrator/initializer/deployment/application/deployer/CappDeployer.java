@@ -92,6 +92,7 @@ import static org.wso2.micro.integrator.initializer.deployment.synapse.deployer.
 import static org.wso2.micro.integrator.initializer.deployment.synapse.deployer.SynapseAppDeployerConstants.SYNAPSE_LIBRARY_TYPE;
 import static org.wso2.micro.integrator.initializer.utils.Constants.CAPP_FOLDER_NAME;
 import static org.wso2.micro.integrator.initializer.utils.Constants.CAR_FILE_EXTENSION;
+import static org.wso2.micro.integrator.initializer.utils.Constants.HTTP_CONNECTOR_NAME;
 import static org.wso2.micro.integrator.initializer.utils.DeployerUtil.getCAppsWithDescriptorCount;
 import static org.wso2.micro.integrator.initializer.utils.DeployerUtil.getCAppProcessingOrder;
 import static org.wso2.micro.integrator.registry.MicroIntegratorRegistryConstants.REG_DEP_FAILURE_IDENTIFIER;
@@ -1284,7 +1285,11 @@ public class CappDeployer extends AbstractDeployer {
                 try {
                     OMElement artElement = secureXmlBuilder(zipIn).getDocumentElement();
                     if (Artifact.ARTIFACT.equals(artElement.getLocalName())) {
-                        String artifactType = artElement.getAttributeValue(new QName("type"));
+                        String artifactType = artElement.getAttributeValue(new QName(Artifact.TYPE));
+                        if (SYNAPSE_LIBRARY_TYPE.equals(artifactType) && HTTP_CONNECTOR_NAME.equals(
+                                artElement.getAttributeValue(new QName(Artifact.NAME)))) {
+                            continue;
+                        }
                         if (artifactType != null && HIGH_PRIORITY_TYPES.contains(artifactType)) {
                             if (log.isDebugEnabled()) {
                                 log.debug("Found high-priority artifact type '" + artifactType
