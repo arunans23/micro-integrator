@@ -287,7 +287,7 @@ public class CappDeployer extends AbstractDeployer {
             targetCAppPath = cAppDirectory + File.separator + parentCApp + File.separator + "dependencies" + File.separator + cAppName;
         }
         String extractedPath = extractCarbonApplication(targetCAppPath);
-        deployCarbonApplications(cAppName, targetCAppPath, extractedPath);
+        deployCarbonApplications(cAppName, targetCAppPath, extractedPath, isEmbeddedCAR);
     }
 
     public static String extractParentCAppName(String filePath) {
@@ -309,10 +309,10 @@ public class CappDeployer extends AbstractDeployer {
         String archPathToProcess = AppDeployerUtils.formatPath(artifactPath);
         String cAppName = archPathToProcess.substring(archPathToProcess.lastIndexOf('/') + 1);
         String targetCAppPath = artifactPath.endsWith(File.separator) ? artifactPath : artifactPath + File.separator;
-        deployCarbonApplications(cAppName, targetCAppPath, targetCAppPath);
+        deployCarbonApplications(cAppName, targetCAppPath, targetCAppPath, false);
     }
 
-    private void deployCarbonApplications(String cAppName, String cAppPath, String targetCAppPath) throws CarbonException {
+    private void deployCarbonApplications(String cAppName, String cAppPath, String targetCAppPath, boolean isEmbeddedCAR) throws CarbonException {
 
         CarbonApplication currentApp = null;
         try {
@@ -345,11 +345,11 @@ public class CappDeployer extends AbstractDeployer {
                         AppDeployerUtils.getTenantIdLogString(AppDeployerUtils.getTenantId()));
             }
         } catch (DeploymentException e) {
-            handleDeployException(e, cAppName, currentApp);
+            handleDeployException(e, cAppName, currentApp, isEmbeddedCAR);
         } catch (SynapseException e) {
             // Handel SynapseException thrown by MicroIntegratorRegistry
             if (e.getMessage() != null && e.getMessage().startsWith(REG_DEP_FAILURE_IDENTIFIER)){
-                handleDeployException(e, cAppName, currentApp);
+                handleDeployException(e, cAppName, currentApp, isEmbeddedCAR);
             }
             throw e;
         } finally {
@@ -459,15 +459,19 @@ public class CappDeployer extends AbstractDeployer {
         final int maxRetryCount = getMaxRetryCount();
         while (retryPassCount < maxRetryCount && !faultyCapps.isEmpty()) {
             retryPassCount++;
+            List<CarbonApplication> appsToRetry = new ArrayList<>(faultyCAppObjects);
             List<String> toRetry = new ArrayList<>(faultyCapps);
             faultyCAppObjects.clear();
             faultyCapps.clear();
             log.info("Retry pass " + retryPassCount + " of " + maxRetryCount
                     + ": Retrying deployment of " + toRetry.size() + " failed CApp(s): " + toRetry);
-            for (String cAppFileName : toRetry) {
-                String artifactPath = cAppDir + File.separator + cAppFileName;
+            for (int i = 0; i < toRetry.size(); i++) {
+                CarbonApplication faultyApp = i < appsToRetry.size() ? appsToRetry.get(i) : null;
+                String artifactPath = faultyApp != null ? faultyApp.getAppFilePath()
+                        : cAppDir + File.separator + toRetry.get(i);
+                boolean isEmbedded = faultyApp != null && faultyApp.isEmbeddedCAR();
                 try {
-                    deployCarbonApps(artifactPath, false);
+                    deployCarbonApps(artifactPath, isEmbedded);
                 } catch (Exception e) {
                     log.error("Error while retrying deployment of carbon application: " + artifactPath, e);
                 }
@@ -487,7 +491,7 @@ public class CappDeployer extends AbstractDeployer {
         return AppDeployerUtils.extractCarbonApp(targetCAppPath);
     }
 
-    private void handleDeployException(Exception e, String cAppName, CarbonApplication currentApp) {
+    private void handleDeployException(Exception e, String cAppName, CarbonApplication currentApp, boolean isEmbeddedCAR) {
         log.error("Error occurred while deploying the Carbon application: " + cAppName
                 + ". Reverting successfully deployed artifacts in the CApp.", e);
         undeployCarbonApp(currentApp, axisConfig);
@@ -497,6 +501,7 @@ public class CappDeployer extends AbstractDeployer {
         StringWriter sw = new StringWriter();
         e.printStackTrace(new PrintWriter(sw));
         currentApp.setFaultStackTrace(sw.toString());
+        currentApp.setEmbeddedCAR(isEmbeddedCAR);
         faultyCAppObjects.add(currentApp);
         faultyCapps.add(cAppName);
     }
