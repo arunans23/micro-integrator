@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.wso2.config.mapper.ConfigParser;
 import org.wso2.micro.application.deployer.CarbonApplication;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -709,5 +710,423 @@ public class CappDeployerTest {
 
         assertEquals("retryPassCount must be reset to 0 by cleanup()",
                      0, getRetryPassCount());
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers for HTTP connector and embedded CAR tests
+    // -------------------------------------------------------------------------
+
+    /**
+     * Creates a .car file with artifacts of the given names and types.
+     * Each artifact gets its own directory entry named {@code <artifactName>_1.0.0/artifact.xml}.
+     */
+    private File createCarFileWithNamedArtifacts(String fileName, String[] artifactNames,
+                                                  String[] artifactTypes) throws IOException {
+        File carFile = new File(TEMP_DIR, fileName);
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(carFile))) {
+            for (int i = 0; i < artifactNames.length; i++) {
+                String dirEntry = artifactNames[i] + "_1.0.0/";
+                zos.putNextEntry(new ZipEntry(dirEntry));
+                zos.closeEntry();
+                zos.putNextEntry(new ZipEntry(dirEntry + "artifact.xml"));
+                String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<artifact name=\"" + artifactNames[i] + "\" version=\"1.0.0\""
+                        + " type=\"" + artifactTypes[i] + "\""
+                        + " serverRole=\"EnterpriseIntegrator\">\n"
+                        + "    <file>" + artifactNames[i] + ".zip</file>\n"
+                        + "</artifact>";
+                zos.write(xml.getBytes(StandardCharsets.UTF_8));
+                zos.closeEntry();
+            }
+        }
+        tempFiles.add(carFile);
+        return carFile;
+    }
+
+    /**
+     * Creates an outer .car file on disk with {@code innerEntryPath} embedded as a zip entry
+     * (the entry itself is a valid .car containing artifacts of {@code innerArtifactTypes}).
+     * Returns the synthetic {@link File} path representing the embedded inner CAR
+     * (i.e. {@code <outer.car>/<innerEntryPath>} — not a real file on disk), which is the
+     * form that {@link CappDeployer#isHighPriorityCApp} receives for embedded CARs.
+     */
+    private File createEmbeddedCarPath(String outerFileName, String innerEntryPath,
+                                        String... innerArtifactTypes) throws IOException {
+        byte[] innerCarBytes;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ZipOutputStream innerZos = new ZipOutputStream(baos)) {
+            for (int i = 0; i < innerArtifactTypes.length; i++) {
+                String dirEntry = "artifact-" + i + "_1.0.0/";
+                innerZos.putNextEntry(new ZipEntry(dirEntry));
+                innerZos.closeEntry();
+                innerZos.putNextEntry(new ZipEntry(dirEntry + "artifact.xml"));
+                String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<artifact name=\"artifact-" + i + "\" version=\"1.0.0\""
+                        + " type=\"" + innerArtifactTypes[i] + "\""
+                        + " serverRole=\"EnterpriseIntegrator\">\n"
+                        + "    <file>artifact-" + i + ".zip</file>\n"
+                        + "</artifact>";
+                innerZos.write(xml.getBytes(StandardCharsets.UTF_8));
+                innerZos.closeEntry();
+            }
+            innerZos.finish();
+            innerCarBytes = baos.toByteArray();
+        }
+
+        File outerCar = new File(TEMP_DIR, outerFileName);
+        try (ZipOutputStream outerZos = new ZipOutputStream(new FileOutputStream(outerCar))) {
+            // Zip entries always use '/' as separator regardless of OS
+            outerZos.putNextEntry(new ZipEntry(innerEntryPath.replace(File.separatorChar, '/')));
+            outerZos.write(innerCarBytes);
+            outerZos.closeEntry();
+        }
+        tempFiles.add(outerCar);
+
+        // Synthetic path: outer.car/<innerEntryPath> — not a real file, triggers the embedded code path
+        return new File(outerCar.getAbsolutePath() + File.separator
+                + innerEntryPath.replace('/', File.separatorChar));
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: HTTP connector skipping
+    // -------------------------------------------------------------------------
+
+    /**
+     * A CApp whose only {@code synapse/lib} artifact is the HTTP connector
+     * ({@code mi-connector-http}) must be treated as low priority. The HTTP connector
+     * is added to projects by default, so its presence must not hoist a CApp to high priority.
+     */
+    @Test
+    public void testHttpConnectorArtifactIsSkippedAndTreatedAsLowPriority() throws IOException {
+        enablePriorityDeployment();
+        File httpConnector = createCarFileWithNamedArtifacts("http-connector-app.car",
+                new String[]{"mi-connector-http"}, new String[]{"synapse/lib"});
+        File regular = createCarFile("regular-app.car", "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(httpConnector));
+        files.add(toFileData(regular));
+
+        createDeployer().sort(files, 0, 2);
+
+        // Both are low priority; alphabetical order applies: "http-connector-app.car" < "regular-app.car"
+        assertEquals("HTTP connector CApp must be treated as low priority",
+                     "http-connector-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * When a CApp contains the HTTP connector alongside another {@code synapse/lib} connector,
+     * the HTTP connector entry must be skipped but the other connector makes the CApp high priority.
+     */
+    @Test
+    public void testHttpConnectorSkippedButOtherConnectorMakesHighPriority() throws IOException {
+        enablePriorityDeployment();
+        File mixed = createCarFileWithNamedArtifacts("mixed-connector-app.car",
+                new String[]{"mi-connector-http", "my-custom-connector"},
+                new String[]{"synapse/lib", "synapse/lib"});
+        File regular = createCarFile("regular-app.car", "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(mixed));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("CApp with custom connector must be high priority despite also having HTTP connector",
+                     "mixed-connector-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * A {@code synapse/lib} artifact with a name other than {@code mi-connector-http} must
+     * still make the CApp high priority — only the HTTP connector is skipped.
+     */
+    @Test
+    public void testNonHttpConnectorSynapseLibIsHighPriority() throws IOException {
+        enablePriorityDeployment();
+        File customConnector = createCarFileWithNamedArtifacts("custom-connector-app.car",
+                new String[]{"mi-connector-custom"}, new String[]{"synapse/lib"});
+        File regular = createCarFile("regular-app.car", "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(customConnector));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("Non-HTTP connector must still be high priority",
+                     "custom-connector-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car", nameOf(files.get(1)));
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: embedded CAR high-priority detection
+    // -------------------------------------------------------------------------
+
+    /**
+     * A synthetic path of the form {@code outer.car/dependencies/inner.car} (representing a
+     * .car embedded inside a FAT CAR) must be classified as high priority when the inner
+     * CAR contains a high-priority artifact. The parent and embedded CARs are treated as
+     * separate entries during sorting, so the inner CAR is sorted independently based on
+     * its own artifact type.
+     */
+    @Test
+    public void testEmbeddedCarWithHighPriorityArtifactIsHighPriority() throws IOException {
+        enablePriorityDeployment();
+        File embeddedPath = createEmbeddedCarPath("outer-fat.car",
+                "dependencies/inner-connector.car", "synapse/lib");
+        File regular = createCarFile("regular-app.car", "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(embeddedPath));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("embedded CAR with connector artifact must be classified as high priority",
+                     "inner-connector.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * A synthetic embedded CAR path whose inner CAR contains only low-priority artifacts
+     * must be treated as low priority.
+     */
+    @Test
+    public void testEmbeddedCarWithLowPriorityArtifactIsLowPriority() throws IOException {
+        enablePriorityDeployment();
+        File embeddedPath = createEmbeddedCarPath("outer-fat.car",
+                "dependencies/inner-api.car", "synapse/api");
+        File connector = createCarFile("connector-app.car", "synapse/lib");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(embeddedPath));
+        files.add(toFileData(connector));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("connector-app.car must be high priority",
+                     "connector-app.car", nameOf(files.get(0)));
+        assertEquals("embedded CAR with only low-priority artifacts must be low priority",
+                     "inner-api.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * When the outer .car does not exist on disk, the embedded CAR check must return false
+     * (low priority) rather than throwing an exception.
+     */
+    @Test
+    public void testEmbeddedCarWithNonExistentOuterCarIsLowPriority() throws IOException {
+        enablePriorityDeployment();
+        // Synthetic path where the outer .car file is never created on disk
+        File missingEmbedded = new File(TEMP_DIR + File.separator + "nonexistent.car"
+                + File.separator + "dependencies" + File.separator + "inner.car");
+        File connector = createCarFile("connector-app.car", "synapse/lib");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(missingEmbedded));
+        files.add(toFileData(connector));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("connector-app.car must be high priority",
+                     "connector-app.car", nameOf(files.get(0)));
+        assertEquals("embedded CAR with missing outer file must be treated as low priority",
+                     "inner.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * When the outer .car exists but does not contain the expected inner entry, the embedded
+     * CAR check must return false (low priority) rather than throwing an exception.
+     */
+    @Test
+    public void testEmbeddedCarWithMissingInnerEntryIsLowPriority() throws IOException {
+        enablePriorityDeployment();
+        File outerCar = new File(TEMP_DIR, "empty-outer.car");
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(outerCar))) {
+            // intentionally empty — no inner entries
+        }
+        tempFiles.add(outerCar);
+
+        File missingInner = new File(outerCar.getAbsolutePath()
+                + File.separator + "dependencies" + File.separator + "missing-inner.car");
+        File connector = createCarFile("connector-app.car", "synapse/lib");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(missingInner));
+        files.add(toFileData(connector));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("connector-app.car must be high priority",
+                     "connector-app.car", nameOf(files.get(0)));
+        assertEquals("embedded CAR with missing inner entry must be treated as low priority",
+                     "missing-inner.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * A path that is not a real file but also does not contain the {@code .car/} marker
+     * cannot be parsed as an embedded CAR path and must be treated as low priority.
+     */
+    @Test
+    public void testEmbeddedCarPathWithoutCarMarkerIsLowPriority() throws IOException {
+        enablePriorityDeployment();
+        // A path that does not exist and has no ".car/" segment
+        File badPath = new File(TEMP_DIR + File.separator + "some-dir"
+                + File.separator + "inner.car");
+        File connector = createCarFile("connector-app.car", "synapse/lib");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(badPath));
+        files.add(toFileData(connector));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("connector-app.car must be high priority",
+                     "connector-app.car", nameOf(files.get(0)));
+        assertEquals("unresolvable non-file path must be treated as low priority",
+                     "inner.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * An embedded CAR containing only the HTTP connector ({@code mi-connector-http}) must
+     * still be treated as low priority — the HTTP connector skip applies inside embedded CARs too.
+     */
+    @Test
+    public void testEmbeddedCarWithHttpConnectorOnlyIsLowPriority() throws IOException {
+        enablePriorityDeployment();
+        byte[] innerCarBytes;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ZipOutputStream innerZos = new ZipOutputStream(baos)) {
+            String dirEntry = "mi-connector-http_1.0.0/";
+            innerZos.putNextEntry(new ZipEntry(dirEntry));
+            innerZos.closeEntry();
+            innerZos.putNextEntry(new ZipEntry(dirEntry + "artifact.xml"));
+            String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                    + "<artifact name=\"mi-connector-http\" version=\"1.0.0\""
+                    + " type=\"synapse/lib\" serverRole=\"EnterpriseIntegrator\">\n"
+                    + "    <file>mi-connector-http.zip</file>\n"
+                    + "</artifact>";
+            innerZos.write(xml.getBytes(StandardCharsets.UTF_8));
+            innerZos.closeEntry();
+            innerZos.finish();
+            innerCarBytes = baos.toByteArray();
+        }
+        File outerCar = new File(TEMP_DIR, "fat-http-only.car");
+        try (ZipOutputStream outerZos = new ZipOutputStream(new FileOutputStream(outerCar))) {
+            outerZos.putNextEntry(new ZipEntry("dependencies/inner-http.car"));
+            outerZos.write(innerCarBytes);
+            outerZos.closeEntry();
+        }
+        tempFiles.add(outerCar);
+        File embeddedPath = new File(outerCar.getAbsolutePath()
+                + File.separator + "dependencies" + File.separator + "inner-http.car");
+
+        File connector = createCarFile("connector-app.car", "synapse/lib");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(embeddedPath));
+        files.add(toFileData(connector));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("connector-app.car must be high priority",
+                     "connector-app.car", nameOf(files.get(0)));
+        assertEquals("embedded CAR with only HTTP connector must be low priority",
+                     "inner-http.car", nameOf(files.get(1)));
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: CarbonApplication embeddedCAR field
+    // -------------------------------------------------------------------------
+
+    /**
+     * A newly constructed {@link CarbonApplication} must default {@code embeddedCAR} to
+     * {@code false} — regular CApps loaded from the file system are not embedded.
+     */
+    @Test
+    public void testCarbonApplicationEmbeddedCARDefaultIsFalse() {
+        CarbonApplication app = new CarbonApplication();
+        assertFalse("embeddedCAR must default to false for a new CarbonApplication",
+                    app.isEmbeddedCAR());
+    }
+
+    /**
+     * {@link CarbonApplication#setEmbeddedCAR(boolean)} with {@code true} must make
+     * {@link CarbonApplication#isEmbeddedCAR()} return {@code true}.
+     */
+    @Test
+    public void testCarbonApplicationEmbeddedCARCanBeSetToTrue() {
+        CarbonApplication app = new CarbonApplication();
+        app.setEmbeddedCAR(true);
+        assertTrue("isEmbeddedCAR() must return true after setEmbeddedCAR(true)",
+                   app.isEmbeddedCAR());
+    }
+
+    /**
+     * {@link CarbonApplication#setEmbeddedCAR(boolean)} with {@code false} after {@code true}
+     * must reset the flag back to {@code false}.
+     */
+    @Test
+    public void testCarbonApplicationEmbeddedCARCanBeResetToFalse() {
+        CarbonApplication app = new CarbonApplication();
+        app.setEmbeddedCAR(true);
+        app.setEmbeddedCAR(false);
+        assertFalse("isEmbeddedCAR() must return false after being reset with setEmbeddedCAR(false)",
+                    app.isEmbeddedCAR());
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: retry handling with embedded CARs
+    // -------------------------------------------------------------------------
+
+    /**
+     * When {@code faultyCAppObjects} contains a {@link CarbonApplication} marked as an
+     * embedded CAR, {@code retryFaultyCApps()} must use the stored {@code appFilePath}
+     * and complete without throwing. Both faulty lists must be cleared after the retry pass
+     * (the deploy attempt itself fails silently because there is no axis config).
+     */
+    @Test
+    public void testRetryFaultyCAppsHandlesEmbeddedCarObjects() throws Exception {
+        CarbonApplication embeddedApp = new CarbonApplication();
+        embeddedApp.setAppFilePath(TEMP_DIR + File.separator + "outer.car"
+                + File.separator + "dependencies" + File.separator + "inner.car");
+        embeddedApp.setEmbeddedCAR(true);
+
+        ArrayList<String> faulty = new ArrayList<>(Arrays.asList("inner.car"));
+        ArrayList<CarbonApplication> faultyObjects = new ArrayList<>(Arrays.asList(embeddedApp));
+        setStaticField("faultyCapps", faulty);
+        setStaticField("faultyCAppObjects", faultyObjects);
+
+        invokeRetryFaultyCApps(createDeployer()); // must not throw
+
+        assertTrue("faultyCapps must be cleared after retrying embedded CARs",
+                   CappDeployer.getFaultyCapps().isEmpty());
+        assertTrue("faultyCAppObjects must be cleared after retrying embedded CARs",
+                   CappDeployer.getFaultyCAppObjects().isEmpty());
+    }
+
+    /**
+     * When {@code faultyCAppObjects} has fewer entries than {@code faultyCapps}, the retry
+     * must fall back to the {@code cAppDir + fileName} path for the unmatched entries and
+     * complete without throwing.
+     */
+    @Test
+    public void testRetryFaultyCAppsFallsBackToFileNameWhenObjectsMissing() throws Exception {
+        CarbonApplication app = new CarbonApplication();
+        app.setAppFilePath(TEMP_DIR + File.separator + "first.car");
+        app.setEmbeddedCAR(false);
+
+        // faultyCapps has two entries but faultyCAppObjects has only one
+        ArrayList<String> faulty = new ArrayList<>(Arrays.asList("first.car", "second.car"));
+        ArrayList<CarbonApplication> faultyObjects = new ArrayList<>(Arrays.asList(app));
+        setStaticField("faultyCapps", faulty);
+        setStaticField("faultyCAppObjects", faultyObjects);
+
+        invokeRetryFaultyCApps(createDeployer()); // must not throw
+
+        assertTrue("faultyCapps must be cleared", CappDeployer.getFaultyCapps().isEmpty());
+        assertTrue("faultyCAppObjects must be cleared", CappDeployer.getFaultyCAppObjects().isEmpty());
     }
 }
