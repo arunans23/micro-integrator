@@ -51,8 +51,6 @@ public class TaskUtils {
 
     public static final String TASK_BELONGS_TO_INBOUND_ENDPOINT = "InboundEndpoint";
 
-    public static final String START_IN_PAUSED_MODE = "startInPausedMode";
-
     private static SecretResolver secretResolver;
 
     private static final long DEFAULT_MAX_WAIT_TIME = 180;
