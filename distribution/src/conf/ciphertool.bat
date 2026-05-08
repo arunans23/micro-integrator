@@ -82,16 +82,15 @@ echo Using CARBON_HOME:   %CARBON_HOME%
 echo Using JAVA_HOME:    %JAVA_HOME%
 set _RUNJAVA="%JAVA_HOME%\bin\java"
 
-rem Set CipherTransformation only when -Dsymmetric is passed as an argument
+rem Use OAEP transformation for asymmetric (RSA) mode by default; suppress it for symmetric mode
 rem Preserve original args in CMD_ARGS before SHIFT loop modifies %1
 set "CMD_ARGS=%*"
-set CIPHER_TRANSFORMATION=
+set "CIPHER_TRANSFORMATION=-Dorg.wso2.CipherTransformation=RSA/ECB/OAEPwithSHA1andMGF1Padding"
 
 :scanArgs
 if "%~1"=="" goto runCipherTool
-if "%~1"=="-Dsymmetric" (
-    set CIPHER_TRANSFORMATION=-Dorg.wso2.CipherTransformation="RSA/ECB/OAEPwithSHA1andMGF1Padding"
-)
+echo %~1 | FINDSTR /B /C:"-Dsymmetric" >nul
+if not errorlevel 1 set CIPHER_TRANSFORMATION=
 shift
 goto scanArgs
 
