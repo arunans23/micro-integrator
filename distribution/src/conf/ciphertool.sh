@@ -124,12 +124,12 @@ fi
 
 # ----- Execute The Requested Command -----------------------------------------
 
-# Set CipherTransformation only when -Dsymmetric is passed as an argument
-CIPHER_TRANSFORMATION=""
+# Use OAEP transformation for asymmetric (RSA) mode by default; suppress it for symmetric mode
+CIPHER_TRANSFORMATION="-Dorg.wso2.CipherTransformation=RSA/ECB/OAEPwithSHA1andMGF1Padding"
 for arg in "$@"; do
   case "$arg" in
     -Dsymmetric|-Dsymmetric=*)
-      CIPHER_TRANSFORMATION="-Dorg.wso2.CipherTransformation=RSA/ECB/OAEPwithSHA1andMGF1Padding"
+      CIPHER_TRANSFORMATION=""
       break
       ;;
   esac
