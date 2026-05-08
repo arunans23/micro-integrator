@@ -329,7 +329,7 @@ public class TaskResource extends APIResource {
         if (INACTIVE_STATUS.equalsIgnoreCase(status)) {
             DynamicControlOperationResult result = controllerTask.deactivate();
             if (result.isSuccess()) {
-                jsonResponse.put(Constants.MESSAGE_JSON_ATTRIBUTE, name + " : is deactivated");
+                jsonResponse.put(Constants.MESSAGE_JSON_ATTRIBUTE, result.getMessage());
                 AuditLogger.logAuditMessage(performedBy, Constants.AUDIT_LOG_TYPE_TASK,
                         Constants.AUDIT_LOG_ACTION_DISABLED, info);
             } else {
@@ -338,7 +338,7 @@ public class TaskResource extends APIResource {
         } else if (ACTIVE_STATUS.equalsIgnoreCase(status)) {
             DynamicControlOperationResult result = controllerTask.activate();
             if (result.isSuccess()) {
-                jsonResponse.put(Constants.MESSAGE_JSON_ATTRIBUTE, name + " : is activated");
+                jsonResponse.put(Constants.MESSAGE_JSON_ATTRIBUTE, result.getMessage());
                 AuditLogger.logAuditMessage(performedBy, Constants.AUDIT_LOG_TYPE_TASK,
                         Constants.AUDIT_LOG_ACTION_ENABLE, info);
             } else {
@@ -347,7 +347,7 @@ public class TaskResource extends APIResource {
         } else if (TRIGGER_STATUS.equalsIgnoreCase(status)) {
             DynamicControlOperationResult result = controllerTask.trigger();
             if (result.isSuccess()) {
-                jsonResponse.put(Constants.MESSAGE_JSON_ATTRIBUTE, name + " : is triggered");
+                jsonResponse.put(Constants.MESSAGE_JSON_ATTRIBUTE, result.getMessage());
                 AuditLogger.logAuditMessage(performedBy, Constants.AUDIT_LOG_TYPE_TASK,
                         Constants.AUDIT_LOG_ACTION_TRIGGERED, info);
             } else {

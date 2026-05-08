@@ -127,7 +127,7 @@ public abstract class InboundRequestProcessorImpl implements InboundRequestProce
         taskDescription.setTaskImplClassName(task.getClass().getName());
         taskDescription.addProperty(TaskUtils.TASK_OWNER_PROPERTY, TaskUtils.TASK_BELONGS_TO_INBOUND_ENDPOINT);
         taskDescription.addProperty(TaskUtils.TASK_OWNER_NAME, name);
-        taskDescription.addProperty(TaskUtils.START_IN_PAUSED_MODE, String.valueOf(startInPausedMode));
+        taskDescription.setStartInPausedMode(startInPausedMode);
         return taskDescription;
     }
     
