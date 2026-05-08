@@ -48,7 +48,8 @@ public class CiphertextRepository implements SecretRepository {
     @Override
     public String getSecret(String alias) {
         SecretManager secretManager = SecretManager.getInstance();
-        return secretManager.getSecret(alias);
+        // this resolves the secret by looking up both legacy and external vault providers
+        return secretManager.resolveSecret(alias);
     }
 
     @Override
