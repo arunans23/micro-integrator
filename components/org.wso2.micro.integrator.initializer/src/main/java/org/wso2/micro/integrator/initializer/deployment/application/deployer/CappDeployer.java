@@ -313,7 +313,7 @@ public class CappDeployer extends AbstractDeployer {
         deployCarbonApplications(cAppName, targetCAppPath, targetCAppPath, false);
     }
 
-    private void deployCarbonApplications(String cAppName, String cAppPath, String targetCAppPath, boolean isEmbeddedCAR) throws CarbonException {
+    private void deployCarbonApplications(String cAppName, String cAppPath, String targetCAppPath, boolean isEmbeddedCAR) {
 
         CarbonApplication currentApp = null;
         try {
@@ -345,7 +345,7 @@ public class CappDeployer extends AbstractDeployer {
                 log.info("Successfully Deployed Carbon Application : " + currentApp.getAppNameWithVersion() +
                         AppDeployerUtils.getTenantIdLogString(AppDeployerUtils.getTenantId()));
             }
-        } catch (DeploymentException e) {
+        } catch (CarbonException | DeploymentException e) {
             handleDeployException(e, cAppName, currentApp, isEmbeddedCAR);
         } catch (SynapseException e) {
             // Handel SynapseException thrown by MicroIntegratorRegistry
@@ -466,8 +466,18 @@ public class CappDeployer extends AbstractDeployer {
             faultyCapps.clear();
             log.info("Retry pass " + retryPassCount + " of " + maxRetryCount
                     + ": Retrying deployment of " + toRetry.size() + " failed CApp(s): " + toRetry);
+            boolean anyRetried = false;
             for (int i = 0; i < toRetry.size(); i++) {
                 CarbonApplication faultyApp = i < appsToRetry.size() ? appsToRetry.get(i) : null;
+                if (i < appsToRetry.size() && faultyApp == null) {
+                    // No CarbonApplication object means the failure occurred before the app was
+                    // built. Retrying cannot help; preserve as permanently faulty so accounting 
+                    // and management APIs remain correct.
+                    faultyCAppObjects.add(null);
+                    faultyCapps.add(toRetry.get(i));
+                    continue;
+                }
+                anyRetried = true;
                 String artifactPath = faultyApp != null ? faultyApp.getAppFilePath()
                         : cAppDir + File.separator + toRetry.get(i);
                 boolean isEmbedded = faultyApp != null && faultyApp.isEmbeddedCAR();
@@ -476,6 +486,11 @@ public class CappDeployer extends AbstractDeployer {
                 } catch (Exception e) {
                     log.error("Error while retrying deployment of carbon application: " + artifactPath, e);
                 }
+            }
+            if (!anyRetried) {
+                // All remaining entries are non-retryable; exit early to avoid burning retry
+                // passes with no-op iterations.
+                break;
             }
         }
     }
@@ -495,14 +510,16 @@ public class CappDeployer extends AbstractDeployer {
     private void handleDeployException(Exception e, String cAppName, CarbonApplication currentApp, boolean isEmbeddedCAR) {
         log.error("Error occurred while deploying the Carbon application: " + cAppName
                 + ". Reverting successfully deployed artifacts in the CApp.", e);
-        undeployCarbonApp(currentApp, axisConfig);
-        // Validate synapse config to remove half added swagger definitions in the case of a faulty CAPP.
-        SynapseConfigUtils.getSynapseConfiguration(SUPER_TENANT_DOMAIN_NAME).validateSwaggerTable();
-        currentApp.setErrorMessage(e.getMessage());
-        StringWriter sw = new StringWriter();
-        e.printStackTrace(new PrintWriter(sw));
-        currentApp.setFaultStackTrace(sw.toString());
-        currentApp.setEmbeddedCAR(isEmbeddedCAR);
+        if (currentApp != null) {
+            undeployCarbonApp(currentApp, axisConfig);
+            // Validate synapse config to remove half added swagger definitions in the case of a faulty CAPP.
+            SynapseConfigUtils.getSynapseConfiguration(SUPER_TENANT_DOMAIN_NAME).validateSwaggerTable();
+            currentApp.setErrorMessage(e.getMessage());
+            StringWriter sw = new StringWriter();
+            e.printStackTrace(new PrintWriter(sw));
+            currentApp.setFaultStackTrace(sw.toString());
+            currentApp.setEmbeddedCAR(isEmbeddedCAR);
+        }
         faultyCAppObjects.add(currentApp);
         faultyCapps.add(cAppName);
     }
@@ -957,7 +974,7 @@ public class CappDeployer extends AbstractDeployer {
             String cAppName = appFilePath.substring(appFilePath.lastIndexOf(File.separator) + 1);
             faultyCapps.remove(cAppName);
             for (CarbonApplication application : faultyCAppObjects) {
-                if (application.getAppFilePath().equals(appFilePath)) {
+                if (application != null && application.getAppFilePath().equals(appFilePath)) {
                     faultyCAppObjects.remove(application);
                     break;
                 }
