@@ -19,6 +19,7 @@
 package org.wso2.micro.integrator.initializer.deployment.application.deployer;
 
 import org.apache.axis2.deployment.repository.util.DeploymentFileData;
+import org.apache.commons.math3.analysis.function.Add;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -53,9 +54,10 @@ import org.wso2.micro.integrator.initializer.utils.DeployerUtilTest;
  * <h3>Sort / priority ordering ({@link CappDeployer#sort})</h3>
  * <p>A CApp is classified as <b>high priority</b> if it contains any artifact with one of:
  * <ul>
- *   <li>{@code lib/synapse/mediator} – class mediator</li>
- *   <li>{@code synapse/lib}          – connector</li>
- *   <li>{@code registry/resource}    – registry resource</li>
+ *   <li>{@code lib/synapse/mediator}  – class mediator</li>
+ *   <li>{@code synapse/lib}           – connector</li>
+ *   <li>{@code registry/resource}     – registry resource</li>
+ *   <li>{@code datasource/datasource} – datasource</li>
  * </ul>
  * All other CApps are classified as <b>low priority</b>. After sorting, high-priority CApps
  * appear first (alphabetically), followed by low-priority CApps (also alphabetically).
@@ -64,6 +66,7 @@ public class CappDeployerTest {
 
     private static final String PRIORITY_CONFIG_KEY = "server.enable_priority_deployment";
     private static final String RETRY_COUNT_CONFIG_KEY = "server.priority_deployment_retry_count";
+    private static final String HIGH_PRIORITY_TYPES_CONFIG_KEY = "server.priority_deployment_high_priority_types";
 
     /** Tracks all temporary .car files created during a test so they can be cleaned up. */
     private final List<File> tempFiles = new ArrayList<>();
@@ -107,6 +110,7 @@ public class CappDeployerTest {
         // Remove config keys so each test starts from a clean slate.
         ConfigParser.getParsedConfigs().remove(PRIORITY_CONFIG_KEY);
         ConfigParser.getParsedConfigs().remove(RETRY_COUNT_CONFIG_KEY);
+        ConfigParser.getParsedConfigs().remove(HIGH_PRIORITY_TYPES_CONFIG_KEY);
         // Reset highPriorityCAppCount to its sentinel value so sort-related tests are isolated.
         setStaticField("highPriorityCAppCount", -1);
         setStaticField("retryPassCount", 0);
@@ -729,6 +733,189 @@ public class CappDeployerTest {
                      0, getRetryPassCount());
     }
 
+// -------------------------------------------------------------------------
+    // Tests: datasource artifact type is high priority by default
+    // -------------------------------------------------------------------------
+
+    /**
+     * A CApp containing a datasource artifact ({@code datasource/datasource}) must be
+     * classified as high priority by the built-in type set and placed before a low-priority
+     * CApp when sorted.
+     */
+    @Test
+    public void testDatasourceArtifactTypeIsHighPriority() throws IOException {
+        enablePriorityDeployment();
+        File datasource = createCarFile("datasource-app.car", "datasource/datasource");
+        File regular    = createCarFile("regular-app.car",    "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(datasource));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("datasource-app.car should be first (high priority)", "datasource-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car should be second (low priority)",    "regular-app.car",    nameOf(files.get(1)));
+    }
+
+    /**
+     * A datasource CApp must sort alphabetically among other high-priority CApps.
+     */
+    @Test
+    public void testDatasourceSortsAmongOtherHighPriorityCApps() throws IOException {
+        enablePriorityDeployment();
+        File mediator   = createCarFile("bravo-mediator.car",   "lib/synapse/mediator");
+        File datasource = createCarFile("alpha-datasource.car", "datasource/datasource");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(mediator));
+        files.add(toFileData(datasource));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("alpha-datasource.car should be first (alphabetical within high-priority group)", "alpha-datasource.car", nameOf(files.get(0)));
+        assertEquals("bravo-mediator.car should be second",                                            "bravo-mediator.car",   nameOf(files.get(1)));
+    }
+
+    /**
+     * The count set by sort() must include datasource CApps in the high-priority count.
+     */
+    @Test
+    public void testSortCountsDataSourceCAppsAsHighPriority() throws Exception {
+        enablePriorityDeployment();
+        File datasource = createCarFile("ds-app.car",      "datasource/datasource");
+        File connector  = createCarFile("conn-app.car",    "synapse/lib");
+        File regular    = createCarFile("regular-app.car", "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(datasource));
+        files.add(toFileData(connector));
+
+        createDeployer().sort(files, 0, 3);
+
+        assertEquals("highPriorityCAppCount must be 2 (datasource + connector)", 2, getHighPriorityCAppCount());
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests: configurable high-priority types via deployment.toml
+    // -------------------------------------------------------------------------
+
+    /**
+     * When {@code server.priority_deployment_high_priority_types} is absent, the built-in
+     * set (mediator, connector, registry, datasource) must be used.
+     */
+    @Test
+    public void testDefaultHighPriorityTypesUsedWhenConfigAbsent() throws IOException {
+        enablePriorityDeployment();
+        // HIGH_PRIORITY_TYPES_CONFIG_KEY is deliberately not set.
+        File datasource = createCarFile("datasource-app.car", "datasource/datasource");
+        File regular    = createCarFile("regular-app.car",    "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(datasource));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("datasource-app.car should be high-priority (built-in default)", "datasource-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car should be second",                               "regular-app.car",    nameOf(files.get(1)));
+    }
+
+    /**
+     * When {@code server.priority_deployment_high_priority_types} is set to a custom list,
+     * only the configured types must be treated as high priority; built-in types absent
+     * from the list must fall to low priority.
+     */
+    @Test
+    public void testCustomHighPriorityTypesOverrideBuiltInTypes() throws IOException {
+        enablePriorityDeployment();
+        ConfigParser.getParsedConfigs().put(HIGH_PRIORITY_TYPES_CONFIG_KEY,
+                Arrays.asList("synapse/api"));
+
+        File api       = createCarFile("api-app.car",       "synapse/api"); // now high-priority
+        File connector = createCarFile("connector-app.car", "synapse/lib"); // no longer high-priority
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(connector));
+        files.add(toFileData(api));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("api-app.car should be first (configured as high priority)",        "api-app.car",       nameOf(files.get(0)));
+        assertEquals("connector-app.car should be second (not in configured type list)", "connector-app.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * A configured list with multiple custom types must classify CApps containing any of
+     * those types as high priority, preserving alphabetical ordering within each group.
+     */
+    @Test
+    public void testMultipleCustomHighPriorityTypesAllClassifiedCorrectly() throws IOException {
+        enablePriorityDeployment();
+        ConfigParser.getParsedConfigs().put(HIGH_PRIORITY_TYPES_CONFIG_KEY,
+                Arrays.asList("synapse/api", "synapse/sequence"));
+
+        File api      = createCarFile("api-app.car",      "synapse/api");
+        File sequence = createCarFile("sequence-app.car", "synapse/sequence");
+        File ep       = createCarFile("ep-app.car",       "synapse/endpoint");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(ep));
+        files.add(toFileData(sequence));
+        files.add(toFileData(api));
+
+        createDeployer().sort(files, 0, 3);
+
+        assertEquals("api-app.car should be first (high priority, alphabetical)",      "api-app.car",      nameOf(files.get(0)));
+        assertEquals("sequence-app.car should be second (high priority, alphabetical)", "sequence-app.car", nameOf(files.get(1)));
+        assertEquals("ep-app.car should be last (low priority)",                        "ep-app.car",        nameOf(files.get(2)));
+    }
+
+    /**
+     * When {@code server.priority_deployment_high_priority_types} is set to an empty list,
+     * the built-in high-priority types must be used as a fallback.
+     */
+    @Test
+    public void testEmptyCustomHighPriorityTypesFallsBackToBuiltIn() throws IOException {
+        enablePriorityDeployment();
+        ConfigParser.getParsedConfigs().put(HIGH_PRIORITY_TYPES_CONFIG_KEY, new ArrayList<>());
+
+        File connector = createCarFile("connector-app.car", "synapse/lib"); // built-in high-priority
+        File regular   = createCarFile("regular-app.car",   "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(connector));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("connector-app.car should be first (built-in fallback on empty list)", "connector-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car should be second",                                     "regular-app.car",   nameOf(files.get(1)));
+    }
+
+    /**
+     * When {@code server.priority_deployment_high_priority_types} is set to a non-List
+     * value (e.g. a bare String), the built-in high-priority types must be used as a fallback.
+     */
+    @Test
+    public void testNonListCustomHighPriorityTypesFallsBackToBuiltIn() throws IOException {
+        enablePriorityDeployment();
+        ConfigParser.getParsedConfigs().put(HIGH_PRIORITY_TYPES_CONFIG_KEY, "synapse/api");
+
+        File connector = createCarFile("connector-app.car", "synapse/lib"); // built-in high-priority
+        File regular   = createCarFile("regular-app.car",   "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(connector));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("connector-app.car should be first (built-in fallback on non-List config)", "connector-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car should be second", "regular-app.car", nameOf(files.get(1)));
+    }
+
     // -------------------------------------------------------------------------
     // Helpers for HTTP connector and embedded CAR tests
     // -------------------------------------------------------------------------
@@ -952,7 +1139,7 @@ public class CappDeployerTest {
         assertEquals("embedded CAR with missing outer file must be treated as low priority",
                      "inner.car", nameOf(files.get(1)));
     }
-
+        
     /**
      * When the outer .car exists but does not contain the expected inner entry, the embedded
      * CAR check must return false (low priority) rather than throwing an exception.
