@@ -88,6 +88,7 @@ import javax.xml.stream.XMLStreamException;
 import static org.wso2.micro.core.Constants.SUPER_TENANT_DOMAIN_NAME;
 import static org.wso2.micro.integrator.initializer.deployment.synapse.deployer.SynapseAppDeployerConstants.API_TYPE;
 import static org.wso2.micro.integrator.initializer.deployment.synapse.deployer.SynapseAppDeployerConstants.MEDIATOR_TYPE;
+import static org.wso2.micro.integrator.initializer.deployment.synapse.deployer.SynapseAppDeployerConstants.DATASOURCE_TYPE;
 import static org.wso2.micro.integrator.initializer.deployment.synapse.deployer.SynapseAppDeployerConstants.REGISTRY_RESOURCE_TYPE;
 import static org.wso2.micro.integrator.initializer.deployment.synapse.deployer.SynapseAppDeployerConstants.SYNAPSE_LIBRARY_TYPE;
 import static org.wso2.micro.integrator.initializer.utils.Constants.CAPP_FOLDER_NAME;
@@ -138,7 +139,7 @@ public class CappDeployer extends AbstractDeployer {
     private static volatile int highPriorityCAppCount = -1;
 
     private static final Set<String> HIGH_PRIORITY_TYPES = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList(MEDIATOR_TYPE, SYNAPSE_LIBRARY_TYPE, REGISTRY_RESOURCE_TYPE)));
+            new HashSet<>(Arrays.asList(MEDIATOR_TYPE, SYNAPSE_LIBRARY_TYPE, REGISTRY_RESOURCE_TYPE, DATASOURCE_TYPE)));
 
     private static final XMLInputFactory SECURE_XML_INPUT_FACTORY = createSecureXMLInputFactory();
 
