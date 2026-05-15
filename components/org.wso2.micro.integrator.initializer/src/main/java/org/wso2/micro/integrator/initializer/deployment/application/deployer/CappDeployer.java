@@ -176,6 +176,15 @@ public class CappDeployer extends AbstractDeployer {
             "server.priority_deployment_retry_count";
 
     /**
+     * {@code [server]} section key in deployment.toml that overrides the built-in
+     * {@link #HIGH_PRIORITY_TYPES} set. Accepts a TOML string array, e.g.:
+     * {@code priority_deployment_high_priority_types = ["lib/synapse/mediator", "datasource/datasource"]}
+     * When the config is absent, is an empty list, or is not a TOML string array, the built-in set is used.
+     */
+    private static final String HIGH_PRIORITY_TYPES_CONFIG_KEY =
+            "server.priority_deployment_high_priority_types";
+
+    /**
      * Carbon application repository directory.
      */
     private String cAppDir;
@@ -448,6 +457,30 @@ public class CappDeployer extends AbstractDeployer {
                     + ". Using default retry count of 1.");
             return 1;
         }
+    }
+
+    /**
+     * Returns the set of artifact types that qualify as high-priority. When
+     * {@link #HIGH_PRIORITY_TYPES_CONFIG_KEY} is set in deployment.toml to a non-empty TOML
+     * string array, its values are used; otherwise the built-in {@link #HIGH_PRIORITY_TYPES}
+     * set is returned. This built-in fallback is used when the key is absent, when the
+     * configured value is not a list, or when the configured list is empty.
+     */
+    private Set<String> getHighPriorityTypes() {
+        Object value = ConfigParser.getParsedConfigs().get(HIGH_PRIORITY_TYPES_CONFIG_KEY);
+        if (value instanceof List) {
+            List<?> list = (List<?>) value;
+            Set<String> types = new HashSet<>();
+            for (Object item : list) {
+                if (item != null) {
+                    types.add(item.toString());
+                }
+            }
+            if (!types.isEmpty()) {
+                return Collections.unmodifiableSet(types);
+            }
+        }
+        return HIGH_PRIORITY_TYPES;
     }
 
     /**
@@ -1080,9 +1113,11 @@ public class CappDeployer extends AbstractDeployer {
         List<DeploymentFileData> highPriorityCApps = new ArrayList<>();
         List<DeploymentFileData> lowPriorityCApps = new ArrayList<>();
 
+        // Classify each CApp as high or low priority by inspecting artifact types inside the .car archive
+        Set<String> highPriorityTypes = getHighPriorityTypes();
         for (DeploymentFileData fileData : subList) {
             File carFile = new File(fileData.getAbsolutePath());
-            if (isHighPriorityCApp(carFile)) {
+            if (isHighPriorityCApp(carFile, highPriorityTypes)) {
                 if (log.isDebugEnabled()) {
                     log.debug("CApp classified as high priority: " + carFile.getName());
                 }
@@ -1218,18 +1253,19 @@ public class CappDeployer extends AbstractDeployer {
      *
      * <p>If {@code carFile} is not a regular file on disk (e.g., a path of the form
      * {@code A.car/dependencies/B.car} representing a .car embedded inside another .car),
-     * the check is delegated to {@link #isHighPriorityEmbeddedCApp(File)}.
+     * the check is delegated to {@link #isHighPriorityEmbeddedCApp(File, Set)}.
      *
-     * @param carFile the .car file to inspect
+     * @param carFile           the .car file to inspect
+     * @param highPriorityTypes the set of artifact types that considered as high priority
      * @return {@code true} if the CApp contains at least one high-priority artifact type, {@code false} otherwise
      */
-    private boolean isHighPriorityCApp(File carFile) {
+    private boolean isHighPriorityCApp(File carFile, Set<String> highPriorityTypes) {
         if (!carFile.isFile()) {
             // Path like /path/A.car/dependencies/B.car — nested car inside another car
-            return isHighPriorityEmbeddedCApp(carFile);
+            return isHighPriorityEmbeddedCApp(carFile, highPriorityTypes);
         }
         try (ZipInputStream zipIn = new ZipInputStream(new FileInputStream(carFile))) {
-            return containsHighPriorityArtifact(zipIn, carFile.getName());
+            return containsHighPriorityArtifact(zipIn, carFile.getName(), highPriorityTypes);
         } catch (IOException e) {
             log.warn("Error reading CApp file: " + carFile.getName() + ". Treating as low priority.", e);
         }
@@ -1242,13 +1278,14 @@ public class CappDeployer extends AbstractDeployer {
      * <p>Handles virtual paths of the form {@code /path/to/A.car/dependencies/B.car}, where
      * {@code B.car} is a zip entry inside {@code A.car} rather than a standalone file on disk.
      * The outer archive is opened, the inner entry is located by name, and its contents are
-     * scanned via {@link #containsHighPriorityArtifact(ZipInputStream, String)}.
+     * scanned via {@link #containsHighPriorityArtifact(ZipInputStream, String, Set)}.
      *
-     * @param embeddedCarFile a {@link File} whose path encodes the outer .car and the inner entry name
+     * @param embeddedCarFile   a {@link File} whose path encodes the outer .car and the inner entry name
+     * @param highPriorityTypes the set of artifact types that considered as high priority
      * @return {@code true} if the embedded CApp contains at least one high-priority artifact type,
      *         {@code false} if the entry cannot be resolved or contains no high-priority artifacts
      */
-    private boolean isHighPriorityEmbeddedCApp(File embeddedCarFile) {
+    private boolean isHighPriorityEmbeddedCApp(File embeddedCarFile, Set<String> highPriorityTypes) {
         String absPath = embeddedCarFile.getAbsolutePath();
         // Outer car ends at the first ".car" segment; remainder is the entry path inside it.
         String marker = ".car" + File.separator;
@@ -1274,7 +1311,7 @@ public class CappDeployer extends AbstractDeployer {
             }
             try (InputStream innerCarStream = outerZip.getInputStream(innerCarEntry);
                  ZipInputStream innerZip = new ZipInputStream(innerCarStream)) {
-                return containsHighPriorityArtifact(innerZip, embeddedCarFile.getName());
+                return containsHighPriorityArtifact(innerZip, embeddedCarFile.getName(), highPriorityTypes);
             }
         } catch (IOException e) {
             log.warn("Error reading nested CApp: " + absPath + ". Treating as low priority.", e);
@@ -1289,12 +1326,13 @@ public class CappDeployer extends AbstractDeployer {
      * <p>Only entries whose name ends with {@code /<artifact-dir>/artifact.xml} are inspected;
      * the top-level {@code artifacts.xml} descriptor is excluded by the leading {@code "/"} check.
      *
-     * @param zipIn    the zip stream to scan; the caller is responsible for closing it
-     * @param cappName the CApp name used in log messages
+     * @param zipIn             the zip stream to scan; the caller is responsible for closing it
+     * @param cappName          the CApp name used in log messages
+     * @param highPriorityTypes the set of artifact types that considered as high priority
      * @return {@code true} if a high-priority artifact type is found, {@code false} otherwise
      * @throws IOException if the stream cannot be read
      */
-    private boolean containsHighPriorityArtifact(ZipInputStream zipIn, String cappName) throws IOException {
+    private boolean containsHighPriorityArtifact(ZipInputStream zipIn, String cappName, Set<String> highPriorityTypes) throws IOException {
         ZipEntry entry;
         while ((entry = zipIn.getNextEntry()) != null) {
             // Look only for artifact.xml files inside artifact directories (e.g., <artifact-dir>/artifact.xml).
@@ -1308,7 +1346,7 @@ public class CappDeployer extends AbstractDeployer {
                                 artElement.getAttributeValue(new QName(Artifact.NAME)))) {
                             continue;
                         }
-                        if (artifactType != null && HIGH_PRIORITY_TYPES.contains(artifactType)) {
+                        if (artifactType != null && highPriorityTypes.contains(artifactType)) {
                             if (log.isDebugEnabled()) {
                                 log.debug("Found high-priority artifact type '" + artifactType
                                         + "' in CApp: " + cappName

@@ -3,6 +3,7 @@ hostname = "localhost"
 # offset  = 10
 # enable_priority_deployment = true
 # priority_deployment_retry_count = 1
+# priority_deployment_high_priority_types = ["lib/synapse/mediator", "synapse/lib", "registry/resource", "datasource/datasource"]
 
 [user_store]
 type = "read_only_ldap"
