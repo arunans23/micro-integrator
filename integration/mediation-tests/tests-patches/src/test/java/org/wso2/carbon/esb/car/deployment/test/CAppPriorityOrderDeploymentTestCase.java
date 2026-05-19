@@ -195,7 +195,8 @@ public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentT
     // =========================================================================
 
     @Test(groups = {"wso2.esb"}, description =
-            "All high-priority CApps (Z_*) must be deployed before any low-priority CApp (A_*)",
+            "All high-priority CApps (Z_* and Redeploy_*, including the retry pass) must finish " +
+            "deploying before any low-priority CApp (A_*) is deployed",
             dependsOnMethods = "testAllCAppsAreDeployed")
     public void testAllHighPriorityCAppsDeployedBeforeLowPriorityCApps() {
         int lastHighPriorityIdx = maxOf(
@@ -203,7 +204,9 @@ public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentT
                 startupLogs.indexOf(DEPLOYED_LOG_PREFIX + SYNAPSE_LIB_A_CAPP),
                 startupLogs.indexOf(DEPLOYED_LOG_PREFIX + SYNAPSE_LIB_B_CAPP),
                 startupLogs.indexOf(DEPLOYED_LOG_PREFIX + REGISTRY_RESOURCE_A_CAPP),
-                startupLogs.indexOf(DEPLOYED_LOG_PREFIX + REGISTRY_RESOURCE_B_CAPP)
+                startupLogs.indexOf(DEPLOYED_LOG_PREFIX + REGISTRY_RESOURCE_B_CAPP),
+                startupLogs.indexOf(DEPLOYED_LOG_PREFIX + REDEPLOY_MEDIATOR_CAPP),
+                startupLogs.indexOf(DEPLOYED_LOG_PREFIX + REDEPLOY_DEPENDENT_CAPP)
         );
 
         int firstLowPriorityIdx = minOf(
@@ -223,16 +226,22 @@ public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentT
     }
 
     @Test(groups = {"wso2.esb"}, description =
-            "Low-priority CApps must be deployed in alphabetical order within the low-priority group",
+            "All three low-priority CApps (A_A_*, A_B_*, A_C_*) must be deployed in alphabetical order",
             dependsOnMethods = "testAllCAppsAreDeployed")
     public void testLowPriorityCAppsDeployedInAlphabeticalOrder() {
-        int plainApiAIdx = startupLogs.indexOf(DEPLOYED_LOG_PREFIX + PLAIN_API_A_CAPP);
-        int plainApiBIdx = startupLogs.indexOf(DEPLOYED_LOG_PREFIX + PLAIN_API_B_CAPP);
+        int dependentProxyIdx = startupLogs.indexOf(DEPLOYED_LOG_PREFIX + DEPENDENT_PROXY_CAPP);
+        int plainApiAIdx      = startupLogs.indexOf(DEPLOYED_LOG_PREFIX + PLAIN_API_A_CAPP);
+        int plainApiBIdx      = startupLogs.indexOf(DEPLOYED_LOG_PREFIX + PLAIN_API_B_CAPP);
 
+        Assert.assertTrue(dependentProxyIdx >= 0,
+                "Dependent proxy CApp was not deployed: " + DEPENDENT_PROXY_CAPP);
         Assert.assertTrue(plainApiAIdx >= 0,
                 "Plain API CApp A was not deployed: " + PLAIN_API_A_CAPP);
         Assert.assertTrue(plainApiBIdx >= 0,
                 "Plain API CApp B was not deployed: " + PLAIN_API_B_CAPP);
+        Assert.assertTrue(dependentProxyIdx < plainApiAIdx,
+                "Low-priority CApps must be deployed in alphabetical order (A_A_* before A_B_*). " +
+                        "dependentProxy-index=" + dependentProxyIdx + ", plainApiA-index=" + plainApiAIdx);
         Assert.assertTrue(plainApiAIdx < plainApiBIdx,
                 "Low-priority CApps must be deployed in alphabetical order (A_B_* before A_C_*). " +
                         "plainApiA-index=" + plainApiAIdx + ", plainApiB-index=" + plainApiBIdx);
