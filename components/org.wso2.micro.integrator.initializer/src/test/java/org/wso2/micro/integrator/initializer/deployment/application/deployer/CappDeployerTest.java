@@ -49,18 +49,15 @@ import static org.wso2.micro.integrator.initializer.utils.DeployerUtilTest.write
 import org.wso2.micro.integrator.initializer.utils.DeployerUtilTest;
 
 /**
- * Unit tests for {@link CappDeployer}.
- *
- * <h3>Sort / priority ordering ({@link CappDeployer#sort})</h3>
- * <p>A CApp is classified as <b>high priority</b> if it contains any artifact with one of:
+ * Unit tests for {@link CappDeployer}, covering:
  * <ul>
- *   <li>{@code lib/synapse/mediator}  – class mediator</li>
- *   <li>{@code synapse/lib}           – connector</li>
- *   <li>{@code registry/resource}     – registry resource</li>
- *   <li>{@code datasource/datasource} – datasource</li>
+ *   <li>High-priority sort: classification by artifact type, HTTP connector exclusion,
+ *       alphabetical ordering, sub-range behaviour, configurable types, embedded CARs,
+ *       and {@code highPriorityCAppCount} tracking.</li>
+ *   <li>Dependency-based sort: topological ordering via {@code descriptor.xml}, with
+ *       fallback to alphabetical order on cycles or missing descriptors.</li>
+ *   <li>Retry handling: {@code getMaxRetryCount} config, and {@code retryFaultyCApps} behaviour.</li>
  * </ul>
- * All other CApps are classified as <b>low priority</b>. After sorting, high-priority CApps
- * appear first (alphabetically), followed by low-priority CApps (also alphabetically).
  */
 public class CappDeployerTest {
 
@@ -174,8 +171,130 @@ public class CappDeployerTest {
         ConfigParser.getParsedConfigs().put(PRIORITY_CONFIG_KEY, true);
     }
 
+    private static int getHighPriorityCAppCount() throws Exception {
+        Field field = CappDeployer.class.getDeclaredField("highPriorityCAppCount");
+        field.setAccessible(true);
+        return (int) field.get(null);
+    }
+
+    /**
+     * Creates a .car file with artifacts of the given names and types.
+     * Each artifact gets its own directory entry named {@code <artifactName>_1.0.0/artifact.xml}.
+     */
+    private File createCarFileWithNamedArtifacts(String fileName, String[] artifactNames,
+                                                  String[] artifactTypes) throws IOException {
+        File carFile = new File(tempCAppDir, fileName);
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(carFile))) {
+            for (int i = 0; i < artifactNames.length; i++) {
+                String dirEntry = artifactNames[i] + "_1.0.0/";
+                zos.putNextEntry(new ZipEntry(dirEntry));
+                zos.closeEntry();
+                zos.putNextEntry(new ZipEntry(dirEntry + "artifact.xml"));
+                String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<artifact name=\"" + artifactNames[i] + "\" version=\"1.0.0\""
+                        + " type=\"" + artifactTypes[i] + "\""
+                        + " serverRole=\"EnterpriseIntegrator\">\n"
+                        + "    <file>" + artifactNames[i] + ".zip</file>\n"
+                        + "</artifact>";
+                zos.write(xml.getBytes(StandardCharsets.UTF_8));
+                zos.closeEntry();
+            }
+        }
+        tempFiles.add(carFile);
+        return carFile;
+    }
+
+    /**
+     * Creates an outer .car file on disk with {@code innerEntryPath} embedded as a zip entry
+     * (the entry itself is a valid .car containing artifacts of {@code innerArtifactTypes}).
+     * Returns the synthetic {@link File} path representing the embedded inner CAR
+     * (i.e. {@code <outer.car>/<innerEntryPath>} — not a real file on disk), which is the
+     * form that {@link CappDeployer#isHighPriorityCApp} receives for embedded CARs.
+     */
+    private File createEmbeddedCarPath(String outerFileName, String innerEntryPath,
+                                        String... innerArtifactTypes) throws IOException {
+        byte[] innerCarBytes;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ZipOutputStream innerZos = new ZipOutputStream(baos)) {
+            for (int i = 0; i < innerArtifactTypes.length; i++) {
+                String dirEntry = "artifact-" + i + "_1.0.0/";
+                innerZos.putNextEntry(new ZipEntry(dirEntry));
+                innerZos.closeEntry();
+                innerZos.putNextEntry(new ZipEntry(dirEntry + "artifact.xml"));
+                String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<artifact name=\"artifact-" + i + "\" version=\"1.0.0\""
+                        + " type=\"" + innerArtifactTypes[i] + "\""
+                        + " serverRole=\"EnterpriseIntegrator\">\n"
+                        + "    <file>artifact-" + i + ".zip</file>\n"
+                        + "</artifact>";
+                innerZos.write(xml.getBytes(StandardCharsets.UTF_8));
+                innerZos.closeEntry();
+            }
+            innerZos.finish();
+            innerCarBytes = baos.toByteArray();
+        }
+
+        File outerCar = new File(tempCAppDir, outerFileName);
+        try (ZipOutputStream outerZos = new ZipOutputStream(new FileOutputStream(outerCar))) {
+            // Zip entries always use '/' as separator regardless of OS
+            outerZos.putNextEntry(new ZipEntry(innerEntryPath.replace(File.separatorChar, '/')));
+            outerZos.write(innerCarBytes);
+            outerZos.closeEntry();
+        }
+        tempFiles.add(outerCar);
+
+        // Synthetic path: outer.car/<innerEntryPath> — not a real file, triggers the embedded code path
+        return new File(outerCar.getAbsolutePath() + File.separator
+                + innerEntryPath.replace('/', File.separatorChar));
+    }
+
+    private static int invokeGetMaxRetryCount(CappDeployer deployer) throws Exception {
+        java.lang.reflect.Method method = CappDeployer.class.getDeclaredMethod("getMaxRetryCount");
+        method.setAccessible(true);
+        return (int) method.invoke(deployer);
+    }
+
+    private static int getRetryPassCount() throws Exception {
+        Field field = CappDeployer.class.getDeclaredField("retryPassCount");
+        field.setAccessible(true);
+        return (int) field.get(null);
+    }
+
+    private static void setStaticField(String fieldName, Object value) throws Exception {
+        Field field = CappDeployer.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(null, value);
+    }
+
+    private static void invokeRetryFaultyCApps(CappDeployer deployer) throws Exception {
+        Method method = CappDeployer.class.getDeclaredMethod("retryFaultyCApps");
+        method.setAccessible(true);
+        method.invoke(deployer);
+    }
+
+    /** Creates a {@link CappDeployer} pointing at {@link #tempCAppDir} for dependency tests. */
+    private CappDeployer createDepDeployer() {
+        CappDeployer deployer = new CappDeployer();
+        deployer.setDirectory(tempCAppDir.getAbsolutePath());
+        return deployer;
+    }
+
+    /**
+     * Creates a minimal .car file inside {@link #tempCAppDir} for dependency-ordering tests.
+     * The archive contains {@code artifacts.xml} and {@code metadata.xml} but no
+     * {@code descriptor.xml} — call {@link DeployerUtilTest#writeDescriptorToExistingCarFile}
+     * to add one afterwards.
+     */
+    private File createDepCarFile(String name) throws IOException {
+        return DeployerUtilTest.createCarFile(tempCAppDir, name);
+    }
+
+    // =========================================================================
+    // Tests: high-priority sort
+    // =========================================================================
+
     // -------------------------------------------------------------------------
-    // Tests: priority classification by artifact type
+    // Priority classification by artifact type
     // -------------------------------------------------------------------------
 
     /**
@@ -239,6 +358,27 @@ public class CappDeployerTest {
     }
 
     /**
+     * A CApp containing a datasource artifact ({@code datasource/datasource}) must be
+     * classified as high priority by the built-in type set and placed before a low-priority
+     * CApp when sorted.
+     */
+    @Test
+    public void testDatasourceArtifactTypeIsHighPriority() throws IOException {
+        enablePriorityDeployment();
+        File datasource = createCarFile("datasource-app.car", "datasource/datasource");
+        File regular    = createCarFile("regular-app.car",    "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(datasource));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("datasource-app.car should be first (high priority)", "datasource-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car should be second (low priority)",    "regular-app.car",    nameOf(files.get(1)));
+    }
+
+    /**
      * A CApp that contains both a high-priority artifact type and a regular artifact type
      * must still be classified as high priority (any match is sufficient).
      */
@@ -260,7 +400,80 @@ public class CappDeployerTest {
     }
 
     // -------------------------------------------------------------------------
-    // Tests: alphabetical ordering within each priority group
+    // HTTP connector exclusion
+    // -------------------------------------------------------------------------
+
+    /**
+     * A CApp whose only {@code synapse/lib} artifact is the HTTP connector
+     * ({@code mi-connector-http}) must be treated as low priority. The HTTP connector
+     * is added to projects by default, so its presence must not hoist a CApp to high priority.
+     */
+    @Test
+    public void testHttpConnectorArtifactIsSkippedAndTreatedAsLowPriority() throws IOException {
+        enablePriorityDeployment();
+        File httpConnector = createCarFileWithNamedArtifacts("http-connector-app.car",
+                new String[]{"mi-connector-http"}, new String[]{"synapse/lib"});
+        File regular = createCarFile("regular-app.car", "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(httpConnector));
+        files.add(toFileData(regular));
+
+        createDeployer().sort(files, 0, 2);
+
+        // Both are low priority; alphabetical order applies: "http-connector-app.car" < "regular-app.car"
+        assertEquals("HTTP connector CApp must be treated as low priority",
+                     "http-connector-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * When a CApp contains the HTTP connector alongside another {@code synapse/lib} connector,
+     * the HTTP connector entry must be skipped but the other connector makes the CApp high priority.
+     */
+    @Test
+    public void testHttpConnectorSkippedButOtherConnectorMakesHighPriority() throws IOException {
+        enablePriorityDeployment();
+        File mixed = createCarFileWithNamedArtifacts("mixed-connector-app.car",
+                new String[]{"mi-connector-http", "my-custom-connector"},
+                new String[]{"synapse/lib", "synapse/lib"});
+        File regular = createCarFile("regular-app.car", "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(mixed));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("CApp with custom connector must be high priority despite also having HTTP connector",
+                     "mixed-connector-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car", nameOf(files.get(1)));
+    }
+
+    /**
+     * A {@code synapse/lib} artifact with a name other than {@code mi-connector-http} must
+     * still make the CApp high priority — only the HTTP connector is skipped.
+     */
+    @Test
+    public void testNonHttpConnectorSynapseLibIsHighPriority() throws IOException {
+        enablePriorityDeployment();
+        File customConnector = createCarFileWithNamedArtifacts("custom-connector-app.car",
+                new String[]{"mi-connector-custom"}, new String[]{"synapse/lib"});
+        File regular = createCarFile("regular-app.car", "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(customConnector));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("Non-HTTP connector must still be high priority",
+                     "custom-connector-app.car", nameOf(files.get(0)));
+        assertEquals("regular-app.car", nameOf(files.get(1)));
+    }
+
+    // -------------------------------------------------------------------------
+    // Alphabetical ordering within each priority group
     // -------------------------------------------------------------------------
 
     /**
@@ -307,8 +520,27 @@ public class CappDeployerTest {
         assertEquals("charlie-api.car", nameOf(files.get(2)));
     }
 
+    /**
+     * A datasource CApp must sort alphabetically among other high-priority CApps.
+     */
+    @Test
+    public void testDatasourceSortsAmongOtherHighPriorityCApps() throws IOException {
+        enablePriorityDeployment();
+        File mediator   = createCarFile("bravo-mediator.car",   "lib/synapse/mediator");
+        File datasource = createCarFile("alpha-datasource.car", "datasource/datasource");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(mediator));
+        files.add(toFileData(datasource));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("alpha-datasource.car should be first (alphabetical within high-priority group)", "alpha-datasource.car", nameOf(files.get(0)));
+        assertEquals("bravo-mediator.car should be second",                                            "bravo-mediator.car",   nameOf(files.get(1)));
+    }
+
     // -------------------------------------------------------------------------
-    // Tests: combined high + low priority ordering
+    // Combined high + low priority ordering
     // -------------------------------------------------------------------------
 
     /**
@@ -344,7 +576,7 @@ public class CappDeployerTest {
     }
 
     // -------------------------------------------------------------------------
-    // Tests: sub-range boundary behaviour
+    // Sub-range boundary behaviour
     // -------------------------------------------------------------------------
 
     /**
@@ -397,7 +629,7 @@ public class CappDeployerTest {
     }
 
     // -------------------------------------------------------------------------
-    // Tests: resilience / edge cases
+    // Resilience / edge cases
     // -------------------------------------------------------------------------
 
     /**
@@ -497,308 +729,7 @@ public class CappDeployerTest {
     }
 
     // -------------------------------------------------------------------------
-    // Tests: highPriorityCAppCount set by sort()
-    //
-    // The retry trigger in deployCarbonApps() compares cAppMap.size()+faultyCapps.size()
-    // against highPriorityCAppCount to detect when the high-priority phase is complete.
-    // These tests verify that sort() records the count correctly.
-    // -------------------------------------------------------------------------
-
-    private static int getHighPriorityCAppCount() throws Exception {
-        Field field = CappDeployer.class.getDeclaredField("highPriorityCAppCount");
-        field.setAccessible(true);
-        return (int) field.get(null);
-    }
-
-    /**
-     * sort() must set highPriorityCAppCount to the exact number of high-priority CApps
-     * in the sorted range. The deployCarbonApps() retry trigger relies on this value.
-     */
-    @Test
-    public void testSortSetsHighPriorityCAppCountCorrectly() throws Exception {
-        enablePriorityDeployment();
-        File high1 = createCarFile("high-a.car", "synapse/lib");
-        File high2 = createCarFile("high-b.car", "registry/resource");
-        File low1  = createCarFile("low-a.car",  "synapse/api");
-
-        List<DeploymentFileData> files = new ArrayList<>();
-        files.add(toFileData(low1));
-        files.add(toFileData(high1));
-        files.add(toFileData(high2));
-
-        createDeployer().sort(files, 0, 3);
-
-        assertEquals("highPriorityCAppCount must equal the number of high-priority CApps in the range",
-                     2, getHighPriorityCAppCount());
-    }
-
-    /**
-     * When all CApps in the range are low priority, highPriorityCAppCount must be 0.
-     * The retry trigger condition (highPriorityCAppCount > 0) will then never fire.
-     */
-    @Test
-    public void testSortSetsHighPriorityCAppCountToZeroWhenAllLowPriority() throws Exception {
-        enablePriorityDeployment();
-        File low1 = createCarFile("low-a.car", "synapse/api");
-        File low2 = createCarFile("low-b.car", "synapse/sequence");
-
-        List<DeploymentFileData> files = new ArrayList<>();
-        files.add(toFileData(low1));
-        files.add(toFileData(low2));
-
-        createDeployer().sort(files, 0, 2);
-
-        assertEquals("highPriorityCAppCount must be 0 when no high-priority CApps are present",
-                     0, getHighPriorityCAppCount());
-    }
-
-    /**
-     * When priority deployment is disabled, sort() returns early without updating
-     * highPriorityCAppCount, so it stays at the sentinel value -1.
-     */
-    @Test
-    public void testSortDoesNotSetHighPriorityCAppCountWhenPriorityDisabled() throws Exception {
-        // Priority deployment deliberately not enabled.
-        File high = createCarFile("high.car", "synapse/lib");
-        File low  = createCarFile("low.car",  "synapse/api");
-
-        List<DeploymentFileData> files = new ArrayList<>();
-        files.add(toFileData(high));
-        files.add(toFileData(low));
-
-        createDeployer().sort(files, 0, 2);
-
-        assertEquals("highPriorityCAppCount must remain -1 when priority deployment is disabled",
-                     -1, getHighPriorityCAppCount());
-    }
-
-    /**
-     * cleanup() must reset highPriorityCAppCount to -1 so that a server re-deployment
-     * (or test re-use of the same JVM) starts with a clean slate.
-     */
-    @Test
-    public void testCleanupResetsHighPriorityCAppCount() throws Exception {
-        setStaticField("highPriorityCAppCount", 3);
-
-        createDeployer().cleanup();
-
-        assertEquals("highPriorityCAppCount must be reset to -1 by cleanup()",
-                     -1, getHighPriorityCAppCount());
-    }
-
-    // -------------------------------------------------------------------------
-    // Tests: configurable retry count (getMaxRetryCount)
-    // -------------------------------------------------------------------------
-
-    private static int invokeGetMaxRetryCount(CappDeployer deployer) throws Exception {
-        java.lang.reflect.Method method = CappDeployer.class.getDeclaredMethod("getMaxRetryCount");
-        method.setAccessible(true);
-        return (int) method.invoke(deployer);
-    }
-
-    private static int getRetryPassCount() throws Exception {
-        Field field = CappDeployer.class.getDeclaredField("retryPassCount");
-        field.setAccessible(true);
-        return (int) field.get(null);
-    }
-
-    /**
-     * When {@code server.priority_deployment_retry_count} is absent from deployment.toml,
-     * getMaxRetryCount() must return the default of 1 (one retry pass).
-     */
-    @Test
-    public void testGetMaxRetryCountDefaultsToOneWhenConfigAbsent() throws Exception {
-        // RETRY_COUNT_CONFIG_KEY is deliberately not set.
-        assertEquals("default retry count must be 1 when config key is absent",
-                     1, invokeGetMaxRetryCount(createDeployer()));
-    }
-
-    /**
-     * getMaxRetryCount() must return the integer value set in deployment.toml.
-     */
-    @Test
-    public void testGetMaxRetryCountReadsValueFromConfig() throws Exception {
-        ConfigParser.getParsedConfigs().put(RETRY_COUNT_CONFIG_KEY, "3");
-        assertEquals("retry count must match the configured value",
-                     3, invokeGetMaxRetryCount(createDeployer()));
-    }
-
-    /**
-     * When the configured value is 0, getMaxRetryCount() must return 0 (retries disabled).
-     */
-    @Test
-    public void testGetMaxRetryCountReturnsZeroWhenConfiguredToZero() throws Exception {
-        ConfigParser.getParsedConfigs().put(RETRY_COUNT_CONFIG_KEY, "0");
-        assertEquals("retry count must be 0 when explicitly set to 0",
-                     0, invokeGetMaxRetryCount(createDeployer()));
-    }
-
-    /**
-     * Negative configured values must be clamped to 0.
-     */
-    @Test
-    public void testGetMaxRetryCountClampsNegativeValueToZero() throws Exception {
-        ConfigParser.getParsedConfigs().put(RETRY_COUNT_CONFIG_KEY, "-5");
-        assertEquals("negative retry count must be clamped to 0",
-                     0, invokeGetMaxRetryCount(createDeployer()));
-    }
-
-    /**
-     * An invalid (non-integer) configured value must fall back to the default of 1.
-     */
-    @Test
-    public void testGetMaxRetryCountFallsBackToOneForInvalidString() throws Exception {
-        ConfigParser.getParsedConfigs().put(RETRY_COUNT_CONFIG_KEY, "not-a-number");
-        assertEquals("invalid retry count config must fall back to default of 1",
-                     1, invokeGetMaxRetryCount(createDeployer()));
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers: reflection utilities for retryFaultyCApps tests
-    // -------------------------------------------------------------------------
-
-    private static void setStaticField(String fieldName, Object value) throws Exception {
-        Field field = CappDeployer.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        field.set(null, value);
-    }
-
-    private static void invokeRetryFaultyCApps(CappDeployer deployer) throws Exception {
-        Method method = CappDeployer.class.getDeclaredMethod("retryFaultyCApps");
-        method.setAccessible(true);
-        method.invoke(deployer);
-    }
-
-    // -------------------------------------------------------------------------
-    // Tests: retryFaultyCApps behaviour
-    // -------------------------------------------------------------------------
-
-    /**
-     * retryFaultyCApps() must snapshot and clear both faultyCapps and faultyCAppObjects
-     * before attempting any retry deployments, so that a CApp that succeeds on retry
-     * lands in cAppMap with a clean slate rather than remaining in the faulty lists.
-     * <p>
-     * Individual deploy attempts during the retry fail silently (invalid files, no
-     * axisConfig), so both lists stay empty after the call.
-     */
-    @Test
-    public void testRetryFaultyCappsClearsBothListsBeforeRetry() throws Exception {
-        ArrayList<String> faulty = new ArrayList<>(Arrays.asList("app-a.car", "app-b.car"));
-        ArrayList<CarbonApplication> faultyObjects = new ArrayList<>();
-        faultyObjects.add(null); // as happens in prod when currentApp is null on failure
-        setStaticField("faultyCapps", faulty);
-        setStaticField("faultyCAppObjects", faultyObjects);
-
-        invokeRetryFaultyCApps(createDeployer());
-
-        assertTrue("faultyCapps must be cleared before retry attempts",
-                   CappDeployer.getFaultyCapps().isEmpty());
-        assertTrue("faultyCAppObjects must be cleared before retry attempts",
-                   CappDeployer.getFaultyCAppObjects().isEmpty());
-    }
-
-    /**
-     * When there are no faulty CApps, retryFaultyCApps() must complete without
-     * throwing an exception and both faulty lists must remain empty.
-     */
-    @Test
-    public void testRetryFaultyCAppsIsNoOpWhenFaultyListIsEmpty() throws Exception {
-        invokeRetryFaultyCApps(createDeployer()); // must not throw
-
-        assertTrue("faultyCapps must remain empty", CappDeployer.getFaultyCapps().isEmpty());
-        assertTrue("faultyCAppObjects must remain empty", CappDeployer.getFaultyCAppObjects().isEmpty());
-    }
-
-    /**
-     * retryPassCount must start at 0, meaning no retry pass has been executed yet and
-     * the deployer is eligible to run up to getMaxRetryCount() passes on first startup.
-     */
-    @Test
-    public void testRetryPassCountIsZeroForNewDeployer() throws Exception {
-        assertEquals("retryPassCount must be 0 on a fresh deployer instance",
-                     0, getRetryPassCount());
-    }
-
-    /**
-     * cleanup() must reset retryPassCount to 0 so that a server re-deployment
-     * (or test re-use of the same JVM) starts with a clean retry slate.
-     */
-    @Test
-    public void testCleanupResetsRetryPassCount() throws Exception {
-        setStaticField("retryPassCount", 2);
-
-        createDeployer().cleanup();
-
-        assertEquals("retryPassCount must be reset to 0 by cleanup()",
-                     0, getRetryPassCount());
-    }
-
-// -------------------------------------------------------------------------
-    // Tests: datasource artifact type is high priority by default
-    // -------------------------------------------------------------------------
-
-    /**
-     * A CApp containing a datasource artifact ({@code datasource/datasource}) must be
-     * classified as high priority by the built-in type set and placed before a low-priority
-     * CApp when sorted.
-     */
-    @Test
-    public void testDatasourceArtifactTypeIsHighPriority() throws IOException {
-        enablePriorityDeployment();
-        File datasource = createCarFile("datasource-app.car", "datasource/datasource");
-        File regular    = createCarFile("regular-app.car",    "synapse/api");
-
-        List<DeploymentFileData> files = new ArrayList<>();
-        files.add(toFileData(regular));
-        files.add(toFileData(datasource));
-
-        createDeployer().sort(files, 0, 2);
-
-        assertEquals("datasource-app.car should be first (high priority)", "datasource-app.car", nameOf(files.get(0)));
-        assertEquals("regular-app.car should be second (low priority)",    "regular-app.car",    nameOf(files.get(1)));
-    }
-
-    /**
-     * A datasource CApp must sort alphabetically among other high-priority CApps.
-     */
-    @Test
-    public void testDatasourceSortsAmongOtherHighPriorityCApps() throws IOException {
-        enablePriorityDeployment();
-        File mediator   = createCarFile("bravo-mediator.car",   "lib/synapse/mediator");
-        File datasource = createCarFile("alpha-datasource.car", "datasource/datasource");
-
-        List<DeploymentFileData> files = new ArrayList<>();
-        files.add(toFileData(mediator));
-        files.add(toFileData(datasource));
-
-        createDeployer().sort(files, 0, 2);
-
-        assertEquals("alpha-datasource.car should be first (alphabetical within high-priority group)", "alpha-datasource.car", nameOf(files.get(0)));
-        assertEquals("bravo-mediator.car should be second",                                            "bravo-mediator.car",   nameOf(files.get(1)));
-    }
-
-    /**
-     * The count set by sort() must include datasource CApps in the high-priority count.
-     */
-    @Test
-    public void testSortCountsDataSourceCAppsAsHighPriority() throws Exception {
-        enablePriorityDeployment();
-        File datasource = createCarFile("ds-app.car",      "datasource/datasource");
-        File connector  = createCarFile("conn-app.car",    "synapse/lib");
-        File regular    = createCarFile("regular-app.car", "synapse/api");
-
-        List<DeploymentFileData> files = new ArrayList<>();
-        files.add(toFileData(regular));
-        files.add(toFileData(datasource));
-        files.add(toFileData(connector));
-
-        createDeployer().sort(files, 0, 3);
-
-        assertEquals("highPriorityCAppCount must be 2 (datasource + connector)", 2, getHighPriorityCAppCount());
-    }
-
-    // -------------------------------------------------------------------------
-    // Tests: configurable high-priority types via deployment.toml
+    // Configurable high-priority types via deployment.toml
     // -------------------------------------------------------------------------
 
     /**
@@ -917,155 +848,7 @@ public class CappDeployerTest {
     }
 
     // -------------------------------------------------------------------------
-    // Helpers for HTTP connector and embedded CAR tests
-    // -------------------------------------------------------------------------
-
-    /**
-     * Creates a .car file with artifacts of the given names and types.
-     * Each artifact gets its own directory entry named {@code <artifactName>_1.0.0/artifact.xml}.
-     */
-    private File createCarFileWithNamedArtifacts(String fileName, String[] artifactNames,
-                                                  String[] artifactTypes) throws IOException {
-        File carFile = new File(tempCAppDir, fileName);
-        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(carFile))) {
-            for (int i = 0; i < artifactNames.length; i++) {
-                String dirEntry = artifactNames[i] + "_1.0.0/";
-                zos.putNextEntry(new ZipEntry(dirEntry));
-                zos.closeEntry();
-                zos.putNextEntry(new ZipEntry(dirEntry + "artifact.xml"));
-                String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<artifact name=\"" + artifactNames[i] + "\" version=\"1.0.0\""
-                        + " type=\"" + artifactTypes[i] + "\""
-                        + " serverRole=\"EnterpriseIntegrator\">\n"
-                        + "    <file>" + artifactNames[i] + ".zip</file>\n"
-                        + "</artifact>";
-                zos.write(xml.getBytes(StandardCharsets.UTF_8));
-                zos.closeEntry();
-            }
-        }
-        tempFiles.add(carFile);
-        return carFile;
-    }
-
-    /**
-     * Creates an outer .car file on disk with {@code innerEntryPath} embedded as a zip entry
-     * (the entry itself is a valid .car containing artifacts of {@code innerArtifactTypes}).
-     * Returns the synthetic {@link File} path representing the embedded inner CAR
-     * (i.e. {@code <outer.car>/<innerEntryPath>} — not a real file on disk), which is the
-     * form that {@link CappDeployer#isHighPriorityCApp} receives for embedded CARs.
-     */
-    private File createEmbeddedCarPath(String outerFileName, String innerEntryPath,
-                                        String... innerArtifactTypes) throws IOException {
-        byte[] innerCarBytes;
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             ZipOutputStream innerZos = new ZipOutputStream(baos)) {
-            for (int i = 0; i < innerArtifactTypes.length; i++) {
-                String dirEntry = "artifact-" + i + "_1.0.0/";
-                innerZos.putNextEntry(new ZipEntry(dirEntry));
-                innerZos.closeEntry();
-                innerZos.putNextEntry(new ZipEntry(dirEntry + "artifact.xml"));
-                String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<artifact name=\"artifact-" + i + "\" version=\"1.0.0\""
-                        + " type=\"" + innerArtifactTypes[i] + "\""
-                        + " serverRole=\"EnterpriseIntegrator\">\n"
-                        + "    <file>artifact-" + i + ".zip</file>\n"
-                        + "</artifact>";
-                innerZos.write(xml.getBytes(StandardCharsets.UTF_8));
-                innerZos.closeEntry();
-            }
-            innerZos.finish();
-            innerCarBytes = baos.toByteArray();
-        }
-
-        File outerCar = new File(tempCAppDir, outerFileName);
-        try (ZipOutputStream outerZos = new ZipOutputStream(new FileOutputStream(outerCar))) {
-            // Zip entries always use '/' as separator regardless of OS
-            outerZos.putNextEntry(new ZipEntry(innerEntryPath.replace(File.separatorChar, '/')));
-            outerZos.write(innerCarBytes);
-            outerZos.closeEntry();
-        }
-        tempFiles.add(outerCar);
-
-        // Synthetic path: outer.car/<innerEntryPath> — not a real file, triggers the embedded code path
-        return new File(outerCar.getAbsolutePath() + File.separator
-                + innerEntryPath.replace('/', File.separatorChar));
-    }
-
-    // -------------------------------------------------------------------------
-    // Tests: HTTP connector skipping
-    // -------------------------------------------------------------------------
-
-    /**
-     * A CApp whose only {@code synapse/lib} artifact is the HTTP connector
-     * ({@code mi-connector-http}) must be treated as low priority. The HTTP connector
-     * is added to projects by default, so its presence must not hoist a CApp to high priority.
-     */
-    @Test
-    public void testHttpConnectorArtifactIsSkippedAndTreatedAsLowPriority() throws IOException {
-        enablePriorityDeployment();
-        File httpConnector = createCarFileWithNamedArtifacts("http-connector-app.car",
-                new String[]{"mi-connector-http"}, new String[]{"synapse/lib"});
-        File regular = createCarFile("regular-app.car", "synapse/api");
-
-        List<DeploymentFileData> files = new ArrayList<>();
-        files.add(toFileData(httpConnector));
-        files.add(toFileData(regular));
-
-        createDeployer().sort(files, 0, 2);
-
-        // Both are low priority; alphabetical order applies: "http-connector-app.car" < "regular-app.car"
-        assertEquals("HTTP connector CApp must be treated as low priority",
-                     "http-connector-app.car", nameOf(files.get(0)));
-        assertEquals("regular-app.car", nameOf(files.get(1)));
-    }
-
-    /**
-     * When a CApp contains the HTTP connector alongside another {@code synapse/lib} connector,
-     * the HTTP connector entry must be skipped but the other connector makes the CApp high priority.
-     */
-    @Test
-    public void testHttpConnectorSkippedButOtherConnectorMakesHighPriority() throws IOException {
-        enablePriorityDeployment();
-        File mixed = createCarFileWithNamedArtifacts("mixed-connector-app.car",
-                new String[]{"mi-connector-http", "my-custom-connector"},
-                new String[]{"synapse/lib", "synapse/lib"});
-        File regular = createCarFile("regular-app.car", "synapse/api");
-
-        List<DeploymentFileData> files = new ArrayList<>();
-        files.add(toFileData(regular));
-        files.add(toFileData(mixed));
-
-        createDeployer().sort(files, 0, 2);
-
-        assertEquals("CApp with custom connector must be high priority despite also having HTTP connector",
-                     "mixed-connector-app.car", nameOf(files.get(0)));
-        assertEquals("regular-app.car", nameOf(files.get(1)));
-    }
-
-    /**
-     * A {@code synapse/lib} artifact with a name other than {@code mi-connector-http} must
-     * still make the CApp high priority — only the HTTP connector is skipped.
-     */
-    @Test
-    public void testNonHttpConnectorSynapseLibIsHighPriority() throws IOException {
-        enablePriorityDeployment();
-        File customConnector = createCarFileWithNamedArtifacts("custom-connector-app.car",
-                new String[]{"mi-connector-custom"}, new String[]{"synapse/lib"});
-        File regular = createCarFile("regular-app.car", "synapse/api");
-
-        List<DeploymentFileData> files = new ArrayList<>();
-        files.add(toFileData(regular));
-        files.add(toFileData(customConnector));
-
-        createDeployer().sort(files, 0, 2);
-
-        assertEquals("Non-HTTP connector must still be high priority",
-                     "custom-connector-app.car", nameOf(files.get(0)));
-        assertEquals("regular-app.car", nameOf(files.get(1)));
-    }
-
-    // -------------------------------------------------------------------------
-    // Tests: embedded CAR high-priority detection
+    // Embedded CAR high-priority detection
     // -------------------------------------------------------------------------
 
     /**
@@ -1139,7 +922,7 @@ public class CappDeployerTest {
         assertEquals("embedded CAR with missing outer file must be treated as low priority",
                      "inner.car", nameOf(files.get(1)));
     }
-        
+
     /**
      * When the outer .car exists but does not contain the expected inner entry, the embedded
      * CAR check must return false (low priority) rather than throwing an exception.
@@ -1242,7 +1025,230 @@ public class CappDeployerTest {
     }
 
     // -------------------------------------------------------------------------
-    // Tests: CarbonApplication embeddedCAR field
+    // highPriorityCAppCount tracking
+    // -------------------------------------------------------------------------
+
+    /**
+     * sort() must set highPriorityCAppCount to the exact number of high-priority CApps
+     * in the sorted range. The deployCarbonApps() retry trigger relies on this value.
+     */
+    @Test
+    public void testSortSetsHighPriorityCAppCountCorrectly() throws Exception {
+        enablePriorityDeployment();
+        File high1 = createCarFile("high-a.car", "synapse/lib");
+        File high2 = createCarFile("high-b.car", "registry/resource");
+        File low1  = createCarFile("low-a.car",  "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(low1));
+        files.add(toFileData(high1));
+        files.add(toFileData(high2));
+
+        createDeployer().sort(files, 0, 3);
+
+        assertEquals("highPriorityCAppCount must equal the number of high-priority CApps in the range",
+                     2, getHighPriorityCAppCount());
+    }
+
+    /**
+     * When all CApps in the range are low priority, highPriorityCAppCount must be 0.
+     * The retry trigger condition (highPriorityCAppCount > 0) will then never fire.
+     */
+    @Test
+    public void testSortSetsHighPriorityCAppCountToZeroWhenAllLowPriority() throws Exception {
+        enablePriorityDeployment();
+        File low1 = createCarFile("low-a.car", "synapse/api");
+        File low2 = createCarFile("low-b.car", "synapse/sequence");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(low1));
+        files.add(toFileData(low2));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("highPriorityCAppCount must be 0 when no high-priority CApps are present",
+                     0, getHighPriorityCAppCount());
+    }
+
+    /**
+     * When priority deployment is disabled, sort() returns early without updating
+     * highPriorityCAppCount, so it stays at the sentinel value -1.
+     */
+    @Test
+    public void testSortDoesNotSetHighPriorityCAppCountWhenPriorityDisabled() throws Exception {
+        // Priority deployment deliberately not enabled.
+        File high = createCarFile("high.car", "synapse/lib");
+        File low  = createCarFile("low.car",  "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(high));
+        files.add(toFileData(low));
+
+        createDeployer().sort(files, 0, 2);
+
+        assertEquals("highPriorityCAppCount must remain -1 when priority deployment is disabled",
+                     -1, getHighPriorityCAppCount());
+    }
+
+    /**
+     * The count set by sort() must include datasource CApps in the high-priority count.
+     */
+    @Test
+    public void testSortCountsDataSourceCAppsAsHighPriority() throws Exception {
+        enablePriorityDeployment();
+        File datasource = createCarFile("ds-app.car",      "datasource/datasource");
+        File connector  = createCarFile("conn-app.car",    "synapse/lib");
+        File regular    = createCarFile("regular-app.car", "synapse/api");
+
+        List<DeploymentFileData> files = new ArrayList<>();
+        files.add(toFileData(regular));
+        files.add(toFileData(datasource));
+        files.add(toFileData(connector));
+
+        createDeployer().sort(files, 0, 3);
+
+        assertEquals("highPriorityCAppCount must be 2 (datasource + connector)", 2, getHighPriorityCAppCount());
+    }
+
+    /**
+     * cleanup() must reset highPriorityCAppCount to -1 so that a server re-deployment
+     * (or test re-use of the same JVM) starts with a clean slate.
+     */
+    @Test
+    public void testCleanupResetsHighPriorityCAppCount() throws Exception {
+        setStaticField("highPriorityCAppCount", 3);
+
+        createDeployer().cleanup();
+
+        assertEquals("highPriorityCAppCount must be reset to -1 by cleanup()",
+                     -1, getHighPriorityCAppCount());
+    }
+
+    // =========================================================================
+    // Tests: retry
+    // =========================================================================
+
+    // -------------------------------------------------------------------------
+    // Configurable retry count (getMaxRetryCount)
+    // -------------------------------------------------------------------------
+
+    /**
+     * When {@code server.priority_deployment_retry_count} is absent from deployment.toml,
+     * getMaxRetryCount() must return the default of 1 (one retry pass).
+     */
+    @Test
+    public void testGetMaxRetryCountDefaultsToOneWhenConfigAbsent() throws Exception {
+        // RETRY_COUNT_CONFIG_KEY is deliberately not set.
+        assertEquals("default retry count must be 1 when config key is absent",
+                     1, invokeGetMaxRetryCount(createDeployer()));
+    }
+
+    /**
+     * getMaxRetryCount() must return the integer value set in deployment.toml.
+     */
+    @Test
+    public void testGetMaxRetryCountReadsValueFromConfig() throws Exception {
+        ConfigParser.getParsedConfigs().put(RETRY_COUNT_CONFIG_KEY, "3");
+        assertEquals("retry count must match the configured value",
+                     3, invokeGetMaxRetryCount(createDeployer()));
+    }
+
+    /**
+     * When the configured value is 0, getMaxRetryCount() must return 0 (retries disabled).
+     */
+    @Test
+    public void testGetMaxRetryCountReturnsZeroWhenConfiguredToZero() throws Exception {
+        ConfigParser.getParsedConfigs().put(RETRY_COUNT_CONFIG_KEY, "0");
+        assertEquals("retry count must be 0 when explicitly set to 0",
+                     0, invokeGetMaxRetryCount(createDeployer()));
+    }
+
+    /**
+     * Negative configured values must be clamped to 0.
+     */
+    @Test
+    public void testGetMaxRetryCountClampsNegativeValueToZero() throws Exception {
+        ConfigParser.getParsedConfigs().put(RETRY_COUNT_CONFIG_KEY, "-5");
+        assertEquals("negative retry count must be clamped to 0",
+                     0, invokeGetMaxRetryCount(createDeployer()));
+    }
+
+    /**
+     * An invalid (non-integer) configured value must fall back to the default of 1.
+     */
+    @Test
+    public void testGetMaxRetryCountFallsBackToOneForInvalidString() throws Exception {
+        ConfigParser.getParsedConfigs().put(RETRY_COUNT_CONFIG_KEY, "not-a-number");
+        assertEquals("invalid retry count config must fall back to default of 1",
+                     1, invokeGetMaxRetryCount(createDeployer()));
+    }
+
+    // -------------------------------------------------------------------------
+    // retryFaultyCApps behaviour
+    // -------------------------------------------------------------------------
+
+    /**
+     * retryFaultyCApps() must snapshot and clear both faultyCapps and faultyCAppObjects
+     * before attempting any retry deployments, so that a CApp that succeeds on retry
+     * lands in cAppMap with a clean slate rather than remaining in the faulty lists.
+     * <p>
+     * Individual deploy attempts during the retry fail silently (invalid files, no
+     * axisConfig), so both lists stay empty after the call.
+     */
+    @Test
+    public void testRetryFaultyCappsClearsBothListsBeforeRetry() throws Exception {
+        ArrayList<String> faulty = new ArrayList<>(Arrays.asList("app-a.car", "app-b.car"));
+        ArrayList<CarbonApplication> faultyObjects = new ArrayList<>();
+        faultyObjects.add(null); // as happens in prod when currentApp is null on failure
+        setStaticField("faultyCapps", faulty);
+        setStaticField("faultyCAppObjects", faultyObjects);
+
+        invokeRetryFaultyCApps(createDeployer());
+
+        assertTrue("faultyCapps must be cleared before retry attempts",
+                   CappDeployer.getFaultyCapps().isEmpty());
+        assertTrue("faultyCAppObjects must be cleared before retry attempts",
+                   CappDeployer.getFaultyCAppObjects().isEmpty());
+    }
+
+    /**
+     * When there are no faulty CApps, retryFaultyCApps() must complete without
+     * throwing an exception and both faulty lists must remain empty.
+     */
+    @Test
+    public void testRetryFaultyCAppsIsNoOpWhenFaultyListIsEmpty() throws Exception {
+        invokeRetryFaultyCApps(createDeployer()); // must not throw
+
+        assertTrue("faultyCapps must remain empty", CappDeployer.getFaultyCapps().isEmpty());
+        assertTrue("faultyCAppObjects must remain empty", CappDeployer.getFaultyCAppObjects().isEmpty());
+    }
+
+    /**
+     * retryPassCount must start at 0, meaning no retry pass has been executed yet and
+     * the deployer is eligible to run up to getMaxRetryCount() passes on first startup.
+     */
+    @Test
+    public void testRetryPassCountIsZeroForNewDeployer() throws Exception {
+        assertEquals("retryPassCount must be 0 on a fresh deployer instance",
+                     0, getRetryPassCount());
+    }
+
+    /**
+     * cleanup() must reset retryPassCount to 0 so that a server re-deployment
+     * (or test re-use of the same JVM) starts with a clean retry slate.
+     */
+    @Test
+    public void testCleanupResetsRetryPassCount() throws Exception {
+        setStaticField("retryPassCount", 2);
+
+        createDeployer().cleanup();
+
+        assertEquals("retryPassCount must be reset to 0 by cleanup()",
+                     0, getRetryPassCount());
+    }
+
+    // -------------------------------------------------------------------------
+    // CarbonApplication embeddedCAR field
     // -------------------------------------------------------------------------
 
     /**
@@ -1282,7 +1288,7 @@ public class CappDeployerTest {
     }
 
     // -------------------------------------------------------------------------
-    // Tests: retry handling with embedded CARs
+    // Retry handling with embedded CARs
     // -------------------------------------------------------------------------
 
     /**
@@ -1334,30 +1340,9 @@ public class CappDeployerTest {
         assertTrue("faultyCAppObjects must be cleared", CappDeployer.getFaultyCAppObjects().isEmpty());
     }
 
-    // -------------------------------------------------------------------------
-    // Dependency test infrastructure
-    // -------------------------------------------------------------------------
-
-    /** Creates a {@link CappDeployer} pointing at {@link #tempCAppDir} for dependency tests. */
-    private CappDeployer createDepDeployer() {
-        CappDeployer deployer = new CappDeployer();
-        deployer.setDirectory(tempCAppDir.getAbsolutePath());
-        return deployer;
-    }
-
-    /**
-     * Creates a minimal .car file inside {@link #tempCAppDir} for dependency-ordering tests.
-     * The archive contains {@code artifacts.xml} and {@code metadata.xml} but no
-     * {@code descriptor.xml} — call {@link DeployerUtilTest#writeDescriptorToExistingCarFile}
-     * to add one afterwards.
-     */
-    private File createDepCarFile(String name) throws IOException {
-        return DeployerUtilTest.createCarFile(tempCAppDir, name);
-    }
-
-    // -------------------------------------------------------------------------
-    // Tests: dependency-based ordering (sortByDependencyOrderWithFallback)
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Tests: dependency-based sort (sortByDependencyOrderWithFallback)
+    // =========================================================================
 
     @Test
     public void testSort_AlphabeticalOrderWhenDescriptorMissing() throws IOException {
