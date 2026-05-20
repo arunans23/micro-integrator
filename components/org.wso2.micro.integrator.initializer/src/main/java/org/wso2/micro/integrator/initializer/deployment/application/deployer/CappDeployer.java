@@ -500,8 +500,8 @@ public class CappDeployer extends AbstractDeployer {
                     + ": Retrying deployment of " + toRetry.size() + " failed CApp(s): " + toRetry);
             boolean anyRetried = false;
             for (int i = 0; i < toRetry.size(); i++) {
-                CarbonApplication faultyApp = i < appsToRetry.size() ? appsToRetry.get(i) : null;
-                if (i < appsToRetry.size() && faultyApp == null) {
+                CarbonApplication faultyApp = appsToRetry.get(i);
+                if (faultyApp == null) {
                     // No CarbonApplication object means the failure occurred before the app was
                     // built. Retrying cannot help; preserve as permanently faulty so accounting 
                     // and management APIs remain correct.
@@ -510,9 +510,8 @@ public class CappDeployer extends AbstractDeployer {
                     continue;
                 }
                 anyRetried = true;
-                String artifactPath = faultyApp != null ? faultyApp.getAppFilePath()
-                        : cAppDir + File.separator + toRetry.get(i);
-                boolean isEmbedded = faultyApp != null && faultyApp.isEmbeddedCAR();
+                String artifactPath = faultyApp.getAppFilePath();
+                boolean isEmbedded = faultyApp.isEmbeddedCAR();
                 try {
                     deployCarbonApps(artifactPath, isEmbedded);
                 } catch (Exception e) {
