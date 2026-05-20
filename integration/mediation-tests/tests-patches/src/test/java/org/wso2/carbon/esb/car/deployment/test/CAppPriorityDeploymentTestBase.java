@@ -69,6 +69,8 @@ public abstract class CAppPriorityDeploymentTestBase extends ESBIntegrationTest 
             CAR_DIR + "priorityDeploymentRetryCountOne" + File.separator + "deployment.toml";
     protected static final String PRIORITY_RETRY_COUNT_MULTIPLE_TOML =
             CAR_DIR + "priorityDeploymentRetryCountMultiple" + File.separator + "deployment.toml";
+    protected static final String PRIORITY_CUSTOM_TYPES_DS_ONLY_TOML =
+            CAR_DIR + "priorityDeploymentCustomTypesDatasourceOnly" + File.separator + "deployment.toml";
 
     // -------------------------------------------------------------------------
     // High-priority CApp names (alphabetical within the group)
@@ -88,6 +90,22 @@ public abstract class CAppPriorityDeploymentTestBase extends ESBIntegrationTest 
     protected static final String DEPENDENT_PROXY_CAPP = "A_A_DependentProxyCApp_1.0.0";
     protected static final String PLAIN_API_A_CAPP     = "A_B_PlainApiACApp_1.0.0";
     protected static final String PLAIN_API_B_CAPP     = "A_C_PlainApiBCApp_1.0.0";
+
+    // -------------------------------------------------------------------------
+    // Datasource CApp name (high-priority when datasource/datasource is in the type list)
+    // -------------------------------------------------------------------------
+
+    protected static final String DATASOURCE_CAPP = "TestDataSource_1.0.0";
+
+    // -------------------------------------------------------------------------
+    // Case-sensitivity test CApp names
+    // ASCII values: 'A'=65, 'B'=66, 'Z'=90, 'a'=97, 'z'=122
+    // -------------------------------------------------------------------------
+
+    /** lowercase 'a' (97) — sorts after all uppercase letters in Java compareTo */
+    protected static final String LOWER_A_CASE_CAPP = "a_CaseSensitiveLowCApp_1.0.0";
+    /** lowercase 'z' (122) — sorts last */
+    protected static final String LOWER_Z_CASE_CAPP = "z_CaseSensitiveLowCApp_1.0.0";
 
     // -------------------------------------------------------------------------
     // Redeploy-scenario CApp names (both high-priority)
