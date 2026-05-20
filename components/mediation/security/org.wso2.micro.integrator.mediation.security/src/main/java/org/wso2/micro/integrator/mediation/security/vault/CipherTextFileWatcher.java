@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, WSO2 LLC. (http://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (http://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -83,7 +83,10 @@ public class CipherTextFileWatcher implements Runnable {
                     WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
                     Path changed = watchedDir.resolve(pathEvent.context()).normalize();
 
-                    if (kind == StandardWatchEventKinds.ENTRY_MODIFY && changed.equals(watchedFile)) {
+                    if ((kind == StandardWatchEventKinds.ENTRY_MODIFY
+                            || kind == StandardWatchEventKinds.ENTRY_CREATE
+                            || kind == StandardWatchEventKinds.ENTRY_DELETE)
+                            && changed.equals(watchedFile)) {
                         LOG.info("cipher-text.properties changed; reloading runtime secret store");
                         try {
                             SecretVaultRuntimeManager.getInstance().reloadFromFile();
@@ -114,6 +117,8 @@ public class CipherTextFileWatcher implements Runnable {
     private void registerDirectory() throws IOException {
         watchedDir.register(watchService,
                 StandardWatchEventKinds.ENTRY_MODIFY,
+                StandardWatchEventKinds.ENTRY_CREATE,
+                StandardWatchEventKinds.ENTRY_DELETE,
                 StandardWatchEventKinds.OVERFLOW);
     }
 

@@ -62,16 +62,21 @@ public class SynapseSecurityServiceComponent {
         SecretVaultRuntimeManager runtimeManager = SecretVaultRuntimeManager.getInstance();
         String cipherTextPath = runtimeManager.getCipherTextPropertiesPath();
 
-        if (cipherTextPath == null || !new File(cipherTextPath).exists()) {
-            log.debug("cipher-text.properties not found; runtime secret store and file watcher not started");
+        if (cipherTextPath == null) {
+            log.debug("cipher-text.properties path not configured; runtime secret store and file watcher not started");
             return;
         }
 
-        try {
-            runtimeManager.reloadFromFile();
-        } catch (Exception e) {
-            log.warn("Initial load of cipher-text.properties into runtime store failed; "
-                    + "static FileBaseSecretRepository will serve as fallback", e);
+        if (new File(cipherTextPath).exists()) {
+            try {
+                runtimeManager.reloadFromFile();
+            } catch (Exception e) {
+                log.warn("Initial load of cipher-text.properties into runtime store failed; "
+                        + "static FileBaseSecretRepository will serve as fallback", e);
+            }
+        } else {
+            log.debug("cipher-text.properties not found at '" + cipherTextPath
+                    + "'; starting file watcher — store will load when the file is created");
         }
 
         CipherTextFileWatcher watcher = new CipherTextFileWatcher(cipherTextPath);

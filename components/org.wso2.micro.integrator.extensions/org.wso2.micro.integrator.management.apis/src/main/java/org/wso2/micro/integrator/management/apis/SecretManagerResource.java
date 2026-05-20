@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, WSO2 LLC. (http://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (http://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -153,9 +153,13 @@ public class SecretManagerResource implements MiApiResource {
             return;
         }
 
-        if (!payload.has(PARAM_ALIAS) || !payload.has(PARAM_VALUE)) {
+        if (!payload.has(PARAM_ALIAS) || !payload.has(PARAM_VALUE)
+                || !payload.get(PARAM_ALIAS).isJsonPrimitive()
+                || !payload.get(PARAM_VALUE).isJsonPrimitive()
+                || !payload.get(PARAM_ALIAS).getAsJsonPrimitive().isString()
+                || !payload.get(PARAM_VALUE).getAsJsonPrimitive().isString()) {
             Utils.setJsonPayLoad(axis2MessageContext,
-                    Utils.createJsonError("Request must contain 'alias' and 'value' fields",
+                    Utils.createJsonError("Request must contain 'alias' and 'value' as string fields",
                             axis2MessageContext, BAD_REQUEST));
             return;
         }
@@ -209,7 +213,16 @@ public class SecretManagerResource implements MiApiResource {
         }
 
         alias = alias.trim();
-        boolean removed = SecretVaultRuntimeManager.getInstance().removeSecret(alias);
+        boolean removed;
+        try {
+            removed = SecretVaultRuntimeManager.getInstance().removeSecret(alias);
+        } catch (IOException e) {
+            LOG.error("Failed to persist removal of secret alias '" + alias + "'", e);
+            Utils.setJsonPayLoad(axis2MessageContext,
+                    Utils.createJsonError("Internal error while removing secret; the alias has not been removed",
+                            axis2MessageContext, INTERNAL_SERVER_ERROR));
+            return;
+        }
         if (!removed) {
             Utils.setJsonPayLoad(axis2MessageContext,
                     Utils.createJsonError("Secret alias '" + alias + "' not found",

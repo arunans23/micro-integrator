@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, WSO2 LLC. (http://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (http://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -79,12 +79,21 @@ public class SecretVaultRuntimeManager {
      * @param encryptedCiphertext the Base64-encoded RSA ciphertext
      * @throws RuntimeException if decryption or file persistence fails
      */
-    public void addOrUpdateSecret(String alias, String encryptedCiphertext) {
+    public void addOrUpdateSecret(String alias, String encryptedCiphertext) throws IOException {
         String decrypted = SecureVaultUtils.decryptSecret(encryptedCiphertext);
         lock.writeLock().lock();
         try {
-            runtimeSecrets.put(alias, decrypted);
-            persistToFile(alias, encryptedCiphertext, false);
+            String previous = runtimeSecrets.put(alias, decrypted);
+            try {
+                persistToFile(alias, encryptedCiphertext, false);
+            } catch (IOException e) {
+                if (previous == null) {
+                    runtimeSecrets.remove(alias);
+                } else {
+                    runtimeSecrets.put(alias, previous);
+                }
+                throw e;
+            }
         } finally {
             lock.writeLock().unlock();
         }
@@ -98,15 +107,22 @@ public class SecretVaultRuntimeManager {
      * @param alias the secret alias
      * @return true if found and removed; false if the alias does not exist
      */
-    public boolean removeSecret(String alias) {
+    public boolean removeSecret(String alias) throws IOException {
         lock.writeLock().lock();
         try {
             Properties fileProps = loadCipherTextFile();
             if (!runtimeSecrets.containsKey(alias) && !fileProps.containsKey(alias)) {
                 return false;
             }
-            runtimeSecrets.remove(alias);
-            persistToFile(alias, null, true);
+            String previous = runtimeSecrets.remove(alias);
+            try {
+                persistToFile(alias, null, true);
+            } catch (IOException e) {
+                if (previous != null) {
+                    runtimeSecrets.put(alias, previous);
+                }
+                throw e;
+            }
             return true;
         } finally {
             lock.writeLock().unlock();
@@ -130,7 +146,13 @@ public class SecretVaultRuntimeManager {
      * @return unmodifiable set of all alias names
      */
     public Set<String> getAllAliases() {
-        Properties fileProps = loadCipherTextFile();
+        Properties fileProps;
+        try {
+            fileProps = loadCipherTextFile();
+        } catch (IOException e) {
+            LOG.warn("Failed to read cipher-text.properties; returning only in-memory aliases", e);
+            return new LinkedHashSet<>(runtimeSecrets.keySet());
+        }
         Set<String> aliases = new LinkedHashSet<>(fileProps.stringPropertyNames());
         aliases.addAll(runtimeSecrets.keySet());
         return aliases;
@@ -142,8 +164,21 @@ public class SecretVaultRuntimeManager {
      * Failures per alias are logged and skipped; the store reflects whatever could be decrypted.
      */
     public void reloadFromFile() {
-        Properties fileProps = loadCipherTextFile();
+        Properties fileProps;
+        try {
+            fileProps = loadCipherTextFile();
+        } catch (IOException e) {
+            LOG.warn("Failed to read cipher-text.properties; runtime secret store not modified", e);
+            return;
+        }
         if (fileProps.isEmpty()) {
+            lock.writeLock().lock();
+            try {
+                runtimeSecrets.clear();
+            } finally {
+                lock.writeLock().unlock();
+            }
+            LOG.info("cipher-text.properties is empty; runtime secret store cleared");
             return;
         }
 
@@ -195,7 +230,7 @@ public class SecretVaultRuntimeManager {
 
     // ---- private helpers ----
 
-    private void persistToFile(String alias, String encryptedCiphertext, boolean remove) {
+    private void persistToFile(String alias, String encryptedCiphertext, boolean remove) throws IOException {
         String path = getCipherTextPropertiesPath();
         if (path == null) {
             LOG.warn("cipher-text.properties path is not configured; secret for alias '"
@@ -219,10 +254,11 @@ public class SecretVaultRuntimeManager {
         } catch (IOException e) {
             LOG.error("Failed to persist secret '" + alias + "' to cipher-text.properties", e);
             temp.delete();
+            throw e;
         }
     }
 
-    private Properties loadCipherTextFile() {
+    private Properties loadCipherTextFile() throws IOException {
         Properties props = new Properties();
         String path = getCipherTextPropertiesPath();
         if (path == null) {
@@ -234,8 +270,6 @@ public class SecretVaultRuntimeManager {
         }
         try (FileInputStream in = new FileInputStream(file)) {
             props.load(in);
-        } catch (IOException e) {
-            LOG.error("Failed to load cipher-text.properties from: " + path, e);
         }
         return props;
     }
