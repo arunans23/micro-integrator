@@ -29,10 +29,10 @@ import java.io.File;
  *
  * <p>When {@code enable_priority_deployment = true} is set in the {@code [server]} section of
  * {@code deployment.toml}, CApps containing {@code lib/synapse/mediator}, {@code synapse/lib},
- * or {@code registry/resource} artifacts are classified as <em>high priority</em> and deployed
- * before all low-priority CApps. Within each priority group CApps are deployed in alphabetical
- * order. Failed high-priority CApps are automatically retried after all high-priority CApps have
- * been processed and before any low-priority CApp is deployed.
+ * {@code registry/resource}, or {@code datasource/datasource} artifacts are classified as
+ * <em>high priority</em> and deployed before all low-priority CApps. Within each priority group
+ * CApps are deployed in alphabetical order. Failed high-priority CApps are automatically retried
+ * after all high-priority CApps have been processed and before any low-priority CApp is deployed.
  */
 public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentTestBase {
 
@@ -48,6 +48,7 @@ public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentT
      *     <ol>
      *       <li>{@code Redeploy_A_DependentCApp} — fails (its mediator has not deployed yet)</li>
      *       <li>{@code Redeploy_B_ClassMediatorCApp} — succeeds; mediator now on classpath</li>
+     *       <li>{@code TestDataSource} — datasource/datasource (high-priority)</li>
      *       <li>{@code Z_A_ClassMediatorCApp}</li>
      *       <li>{@code Z_B_SynapseLibACApp}</li>
      *       <li>{@code Z_C_SynapseLibBCApp}</li>
@@ -74,6 +75,7 @@ public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentT
     public void setUp() throws Exception {
         startServer(new File(PRIORITY_ENABLED_TOML),
                 REDEPLOY_DEPENDENT_CAPP, REDEPLOY_MEDIATOR_CAPP,
+                DATASOURCE_CAPP,
                 CLASS_MEDIATOR_CAPP, SYNAPSE_LIB_A_CAPP, SYNAPSE_LIB_B_CAPP,
                 REGISTRY_RESOURCE_A_CAPP, REGISTRY_RESOURCE_B_CAPP,
                 DEPENDENT_PROXY_CAPP, PLAIN_API_A_CAPP, PLAIN_API_B_CAPP);
@@ -82,6 +84,7 @@ public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentT
     @AfterClass(alwaysRun = true)
     public void tearDown() throws Exception {
         stopServer(REDEPLOY_DEPENDENT_CAPP, REDEPLOY_MEDIATOR_CAPP,
+                DATASOURCE_CAPP,
                 CLASS_MEDIATOR_CAPP, SYNAPSE_LIB_A_CAPP, SYNAPSE_LIB_B_CAPP,
                 REGISTRY_RESOURCE_A_CAPP, REGISTRY_RESOURCE_B_CAPP,
                 DEPENDENT_PROXY_CAPP, PLAIN_API_A_CAPP, PLAIN_API_B_CAPP);
@@ -92,11 +95,12 @@ public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentT
     // =========================================================================
 
     @Test(groups = {"wso2.esb"}, description =
-            "All ten test CApps must appear in the startup log as successfully deployed")
+            "All eleven test CApps must appear in the startup log as successfully deployed")
     public void testAllCAppsAreDeployed() {
         String[] allCApps = {
                 CLASS_MEDIATOR_CAPP, SYNAPSE_LIB_A_CAPP, SYNAPSE_LIB_B_CAPP,
                 REGISTRY_RESOURCE_A_CAPP, REGISTRY_RESOURCE_B_CAPP,
+                DATASOURCE_CAPP,
                 DEPENDENT_PROXY_CAPP, PLAIN_API_A_CAPP, PLAIN_API_B_CAPP,
                 REDEPLOY_DEPENDENT_CAPP, REDEPLOY_MEDIATOR_CAPP
         };
@@ -205,6 +209,7 @@ public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentT
                 startupLogs.indexOf(DEPLOYED_LOG_PREFIX + SYNAPSE_LIB_B_CAPP),
                 startupLogs.indexOf(DEPLOYED_LOG_PREFIX + REGISTRY_RESOURCE_A_CAPP),
                 startupLogs.indexOf(DEPLOYED_LOG_PREFIX + REGISTRY_RESOURCE_B_CAPP),
+                startupLogs.indexOf(DEPLOYED_LOG_PREFIX + DATASOURCE_CAPP),
                 startupLogs.indexOf(DEPLOYED_LOG_PREFIX + REDEPLOY_MEDIATOR_CAPP),
                 startupLogs.indexOf(DEPLOYED_LOG_PREFIX + REDEPLOY_DEPENDENT_CAPP)
         );
@@ -248,7 +253,33 @@ public class CAppPriorityOrderDeploymentTestCase extends CAppPriorityDeploymentT
     }
 
     // =========================================================================
-    // Test 7 – Redeploy on failure
+    // Test 7 – Datasource CApp (high-priority) deploys before low-priority CApps
+    // =========================================================================
+
+    @Test(groups = {"wso2.esb"}, description =
+            "TestDataSource CApp (datasource/datasource type — high-priority by default) must " +
+            "deploy before the low-priority plain-API CApps, confirming datasource/datasource is " +
+            "included in the default high-priority type list",
+            dependsOnMethods = "testAllCAppsAreDeployed")
+    public void testDatasourceCAppDeployedBeforeLowPriority() {
+        int datasourceIdx = startupLogs.indexOf(DEPLOYED_LOG_PREFIX + DATASOURCE_CAPP);
+        int plainApiAIdx  = startupLogs.indexOf(DEPLOYED_LOG_PREFIX + PLAIN_API_A_CAPP);
+        int plainApiBIdx  = startupLogs.indexOf(DEPLOYED_LOG_PREFIX + PLAIN_API_B_CAPP);
+
+        Assert.assertTrue(datasourceIdx >= 0,
+                DATASOURCE_CAPP + " was not found in the deployment log");
+        Assert.assertFalse(startupLogs.contains(FAILED_LOG_PREFIX + DATASOURCE_CAPP),
+                DATASOURCE_CAPP + " must not appear in the failure log");
+        Assert.assertTrue(datasourceIdx < plainApiAIdx,
+                DATASOURCE_CAPP + " (high-priority) must deploy before " + PLAIN_API_A_CAPP +
+                        ". datasourceIdx=" + datasourceIdx + ", plainApiAIdx=" + plainApiAIdx);
+        Assert.assertTrue(datasourceIdx < plainApiBIdx,
+                DATASOURCE_CAPP + " (high-priority) must deploy before " + PLAIN_API_B_CAPP +
+                        ". datasourceIdx=" + datasourceIdx + ", plainApiBIdx=" + plainApiBIdx);
+    }
+
+    // =========================================================================
+    // Test 8 – Redeploy on failure
     // =========================================================================
 
     /**
