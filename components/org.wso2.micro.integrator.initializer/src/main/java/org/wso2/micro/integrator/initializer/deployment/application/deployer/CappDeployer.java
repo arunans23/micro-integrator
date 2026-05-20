@@ -22,7 +22,6 @@ import org.apache.axiom.om.OMException;
 import org.apache.axiom.om.impl.builder.StAXOMBuilder;
 import org.apache.axis2.context.ConfigurationContext;
 import org.apache.axis2.deployment.AbstractDeployer;
-import org.apache.axis2.deployment.Deployer;
 import org.apache.axis2.deployment.DeploymentException;
 import org.apache.axis2.deployment.repository.util.DeploymentFileData;
 import org.apache.axis2.engine.AxisConfiguration;
@@ -67,7 +66,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1091,11 +1089,13 @@ public class CappDeployer extends AbstractDeployer {
      * Sorts the sub-range [startIndex, toIndex) of filesToDeploy with priority-based ordering.
      *
      * <p>Each .car file is inspected to determine whether it contains any high-priority artifact
-     * type ({@code lib/synapse/mediator}, {@code synapse/lib}, {@code registry/resource}).
-     * High-priority CApps are placed before low-priority ones; within each group the order is
-     * alphabetical by file name. {@link #highPriorityCAppCount} is set to the number of
-     * high-priority CApps so the retry pass in {@link #deployCarbonApplications} fires at the
-     * correct moment.
+     * type. By default this includes {@code lib/synapse/mediator}, {@code synapse/lib},
+     * {@code registry/resource}, and {@code datasource/datasource}. The set of high-priority
+     * artifact types can be overridden via
+     * {@code server.priority_deployment_high_priority_types}. High-priority CApps are placed
+     * before low-priority ones; within each group the order is alphabetical by file name.
+     * {@link #highPriorityCAppCount} is set to the number of high-priority CApps so the retry
+     * pass in {@link #deployCarbonApplications} fires at the correct moment.
      *
      * @param filesToDeploy - list of all deployment file data
      * @param startIndex    - start index (inclusive) of the range to sort

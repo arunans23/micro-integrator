@@ -19,7 +19,6 @@
 package org.wso2.micro.integrator.initializer.deployment.application.deployer;
 
 import org.apache.axis2.deployment.repository.util.DeploymentFileData;
-import org.apache.commons.math3.analysis.function.Add;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
