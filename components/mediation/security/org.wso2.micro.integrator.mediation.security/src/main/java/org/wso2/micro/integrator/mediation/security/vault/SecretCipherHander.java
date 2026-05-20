@@ -35,12 +35,16 @@ class SecretCipherHander {
 
 	/**
 	 * Returns the secret corresponding to the given alias name
-	 * 
+	 *
 	 * @param alias
 	 *            The logical or alias name
 	 * @return If there is a secret , otherwise , alias itself
 	 */
 	String getSecret(String alias) {
+		String runtimeSecret = SecretVaultRuntimeManager.getInstance().getSecret(alias);
+		if (runtimeSecret != null) {
+			return runtimeSecret;
+		}
 		return parentRepository.getSecret(alias);
 	}
 
@@ -58,7 +62,11 @@ class SecretCipherHander {
 			}
 			return environmentSecretRepository.getPlainTextSecret(alias);
 		} else if (VaultType.REG.equals(secretSrcData.getVaultType())) {
-			// For registry type we only support plain text
+			// Check runtime store first; fall through to static repository if not found
+			String runtimeSecret = SecretVaultRuntimeManager.getInstance().getSecret(alias);
+			if (runtimeSecret != null) {
+				return runtimeSecret;
+			}
 			return parentRepository.getSecret(alias);
 		} else {
 			// Will never reach here unless customized

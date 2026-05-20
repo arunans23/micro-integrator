@@ -62,6 +62,7 @@ public class Constants {
     public static final String PREFIX_CONFIGS = "/configs";
     public static final String PREFIX_ICP = "/icp";
     public static final String PREFIX_ARTIFACTS = "/artifacts";
+    public static final String PREFIX_SECRETS = "/secrets";
 
     public static final String COUNT = "count";
     public static final String TOTAL_COUNT = "totalCount";
@@ -98,6 +99,7 @@ public class Constants {
     public static final String FORBIDDEN = "403";
     public static final String INTERNAL_SERVER_ERROR = "500";
     public static final String BAD_REQUEST = "400";
+    public static final String NOT_IMPLEMENTED = "501";
     public static final String MESSAGE_TYPE = "messageType";
     public static final String CONTENT_TYPE = "ContentType";
 

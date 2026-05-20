@@ -30,6 +30,8 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import org.wso2.carbon.securevault.SecretCallbackHandlerService;
 import org.wso2.micro.integrator.mediation.security.vault.external.ExternalVaultConfigLoader;
 
+import java.io.File;
+
 @Component(
         name = "mediation.security",
         immediate = true)
@@ -39,15 +41,44 @@ public class SynapseSecurityServiceComponent {
 
     private static SecretCallbackHandlerService secretCallbackHandlerService;
 
+    private Thread fileWatcherThread;
+
     @Activate
     protected void activate(ComponentContext ctxt) {
         log.debug("Synapse mediation security component is activated");
         ExternalVaultConfigLoader.loadExternalVaultConfigs(secretCallbackHandlerService);
+        initializeRuntimeSecretStore();
     }
 
     @Deactivate
     protected void deactivate(ComponentContext ctxt) {
         log.debug("Synapse mediation security component is deactivated");
+        if (fileWatcherThread != null) {
+            fileWatcherThread.interrupt();
+        }
+    }
+
+    private void initializeRuntimeSecretStore() {
+        SecretVaultRuntimeManager runtimeManager = SecretVaultRuntimeManager.getInstance();
+        String cipherTextPath = runtimeManager.getCipherTextPropertiesPath();
+
+        if (cipherTextPath == null || !new File(cipherTextPath).exists()) {
+            log.debug("cipher-text.properties not found; runtime secret store and file watcher not started");
+            return;
+        }
+
+        try {
+            runtimeManager.reloadFromFile();
+        } catch (Exception e) {
+            log.warn("Initial load of cipher-text.properties into runtime store failed; "
+                    + "static FileBaseSecretRepository will serve as fallback", e);
+        }
+
+        CipherTextFileWatcher watcher = new CipherTextFileWatcher(cipherTextPath);
+        fileWatcherThread = new Thread(watcher, "CipherTextFileWatcher");
+        fileWatcherThread.setDaemon(true);
+        fileWatcherThread.start();
+        log.info("CipherTextFileWatcher started for cluster-wide secret sync");
     }
 
     @Reference(
