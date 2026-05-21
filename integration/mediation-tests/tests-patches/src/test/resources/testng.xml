@@ -178,6 +178,8 @@
             <class name="org.wso2.carbon.esb.car.deployment.test.CAppPriorityRetryCountZeroTestCase"/>
             <class name="org.wso2.carbon.esb.car.deployment.test.CAppPriorityRetryCountOneTestCase"/>
             <class name="org.wso2.carbon.esb.car.deployment.test.CAppPriorityRetryCountMultipleTestCase"/>
+            <class name="org.wso2.carbon.esb.car.deployment.test.CAppCaseSensitiveMixedFullOrderDisabledTestCase"/>
+            <class name="org.wso2.carbon.esb.car.deployment.test.CAppCustomHighPriorityTypesTestCase"/>
         </classes>
     </test>
 
