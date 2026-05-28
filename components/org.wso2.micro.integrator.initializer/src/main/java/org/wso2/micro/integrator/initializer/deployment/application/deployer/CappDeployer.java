@@ -71,6 +71,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -500,7 +501,7 @@ public class CappDeployer extends AbstractDeployer {
                     + ": Retrying deployment of " + toRetry.size() + " failed CApp(s): " + toRetry);
             boolean anyRetried = false;
             for (int i = 0; i < toRetry.size(); i++) {
-                CarbonApplication faultyApp = appsToRetry.get(i);
+                CarbonApplication faultyApp = (i < appsToRetry.size()) ? appsToRetry.get(i) : null;
                 if (faultyApp == null) {
                     // No CarbonApplication object means the failure occurred before the app was
                     // built. Retrying cannot help; preserve as permanently faulty so accounting 
@@ -1003,11 +1004,11 @@ public class CappDeployer extends AbstractDeployer {
     void removeFaultyCarbonApp(String appFilePath) {
         synchronized (lock) {
             String cAppName = appFilePath.substring(appFilePath.lastIndexOf(File.separator) + 1);
-            faultyCapps.remove(cAppName);
-            for (CarbonApplication application : faultyCAppObjects) {
-                if (application != null && application.getAppFilePath().equals(appFilePath)) {
-                    faultyCAppObjects.remove(application);
-                    break;
+            int index = faultyCapps.indexOf(cAppName);
+            if (index >= 0) {
+                faultyCapps.remove(index);
+                if (index < faultyCAppObjects.size()) {
+                    faultyCAppObjects.remove(index);
                 }
             }
         }
@@ -1028,7 +1029,9 @@ public class CappDeployer extends AbstractDeployer {
      * @return list of faulty cApp objects
      */
     public static List<CarbonApplication> getFaultyCAppObjects() {
-        return Collections.unmodifiableList(faultyCAppObjects);
+        return faultyCAppObjects.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableList());
     }
 
     public void cleanup() {
