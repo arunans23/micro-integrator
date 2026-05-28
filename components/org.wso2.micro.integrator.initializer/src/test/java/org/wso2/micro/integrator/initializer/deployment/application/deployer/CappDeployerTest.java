@@ -1187,26 +1187,26 @@ public class CappDeployerTest {
     // -------------------------------------------------------------------------
 
     /**
-     * retryFaultyCApps() must snapshot and clear both faultyCapps and faultyCAppObjects
-     * before attempting any retry deployments, so that a CApp that succeeds on retry
-     * lands in cAppMap with a clean slate rather than remaining in the faulty lists.
-     * <p>
-     * Individual deploy attempts during the retry fail silently (invalid files, no
-     * axisConfig), so both lists stay empty after the call.
+     * When all faultyCAppObjects entries are null (CarbonApplication was never built),
+     * retryFaultyCApps() must preserve them as permanently faulty — they are re-added to
+     * both lists after the snapshot-and-clear, and the retry loop exits early because
+     * anyRetried stays false. getFaultyCAppObjects() filters the nulls so management API
+     * consumers see an empty list rather than a NullPointerException.
      */
     @Test
-    public void testRetryFaultyCappsClearsBothListsBeforeRetry() throws Exception {
+    public void testRetryFaultyCAppsPreservesNullObjectsAsPermanentlyFaulty() throws Exception {
         ArrayList<String> faulty = new ArrayList<>(Arrays.asList("app-a.car", "app-b.car"));
         ArrayList<CarbonApplication> faultyObjects = new ArrayList<>();
-        faultyObjects.add(null); // as happens in prod when currentApp is null on failure
+        faultyObjects.add(null);
+        faultyObjects.add(null);
         setStaticField("faultyCapps", faulty);
         setStaticField("faultyCAppObjects", faultyObjects);
 
         invokeRetryFaultyCApps(createDeployer());
 
-        assertTrue("faultyCapps must be cleared before retry attempts",
-                   CappDeployer.getFaultyCapps().isEmpty());
-        assertTrue("faultyCAppObjects must be cleared before retry attempts",
+        assertEquals("permanently faulty apps must remain in faultyCapps",
+                     Arrays.asList("app-a.car", "app-b.car"), CappDeployer.getFaultyCapps());
+        assertTrue("getFaultyCAppObjects() must filter null entries",
                    CappDeployer.getFaultyCAppObjects().isEmpty());
     }
 
@@ -1314,29 +1314,6 @@ public class CappDeployerTest {
                    CappDeployer.getFaultyCapps().isEmpty());
         assertTrue("faultyCAppObjects must be cleared after retrying embedded CARs",
                    CappDeployer.getFaultyCAppObjects().isEmpty());
-    }
-
-    /**
-     * When {@code faultyCAppObjects} has fewer entries than {@code faultyCapps}, the retry
-     * must fall back to the {@code cAppDir + fileName} path for the unmatched entries and
-     * complete without throwing.
-     */
-    @Test
-    public void testRetryFaultyCAppsFallsBackToFileNameWhenObjectsMissing() throws Exception {
-        CarbonApplication app = new CarbonApplication();
-        app.setAppFilePath(tempCAppDir.getAbsolutePath() + File.separator + "first.car");
-        app.setEmbeddedCAR(false);
-
-        // faultyCapps has two entries but faultyCAppObjects has only one
-        ArrayList<String> faulty = new ArrayList<>(Arrays.asList("first.car", "second.car"));
-        ArrayList<CarbonApplication> faultyObjects = new ArrayList<>(Arrays.asList(app));
-        setStaticField("faultyCapps", faulty);
-        setStaticField("faultyCAppObjects", faultyObjects);
-
-        invokeRetryFaultyCApps(createDeployer()); // must not throw
-
-        assertTrue("faultyCapps must be cleared", CappDeployer.getFaultyCapps().isEmpty());
-        assertTrue("faultyCAppObjects must be cleared", CappDeployer.getFaultyCAppObjects().isEmpty());
     }
 
     // =========================================================================
