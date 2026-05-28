@@ -206,6 +206,11 @@ public class FileRegistryResourceDeployer implements AppDeploymentHandler {
                 continue;
             }
             String resourcePath = AppDeployerUtils.computeResourcePath(createRegistryKey(resource), resource.getFileName(), registryConfig);
+            if (MicroIntegratorRegistry.isWriteProtected(resourcePath)) {
+                log.warn("Skipping CAPP registry resource deployment: path '" + resourcePath
+                        + "' is write-protected.");
+                continue;
+            }
             String mediaType = resource.getMediaType();
             ((MicroIntegratorRegistry)lightweightRegistry).addNewNonEmptyResource(resourcePath, false, mediaType,
                                                                                   readResourceContent(file),
@@ -225,6 +230,11 @@ public class FileRegistryResourceDeployer implements AppDeploymentHandler {
                 continue;
             }
             String directoryRegistryPath = createRegistryPath(collection.getPath());
+            if (MicroIntegratorRegistry.isWriteProtected(directoryRegistryPath)) {
+                log.warn("Skipping CAPP registry collection deployment: path '" + directoryRegistryPath
+                        + "' is write-protected.");
+                continue;
+            }
             ((MicroIntegratorRegistry)lightweightRegistry).addNewNonEmptyResource(
                     directoryRegistryPath, true, "", "",
                     collection.getProperties());
