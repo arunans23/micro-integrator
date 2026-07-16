@@ -23,7 +23,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.Test;
 import org.wso2.carbon.esb.rabbitmq.utils.RabbitMQServerInstance;
-import org.wso2.carbon.esb.rabbitmq.utils.RabbitMQTestUtils;
 import org.wso2.esb.integration.common.extensions.carbonserver.CarbonServerExtension;
 import org.wso2.esb.integration.common.utils.CarbonLogReader;
 import org.wso2.esb.integration.common.utils.ESBIntegrationTest;
@@ -66,7 +65,7 @@ public class RabbitMQConsumerTestCase extends ESBIntegrationTest {
             sender.sendMessage(message, "text/plain");
         }
 
-        RabbitMQTestUtils.waitForLogToGetUpdated();
+        logReader.checkForLog("received = true", 20, 200);
         logReader.stop();
         Assert.assertEquals(logReader.getNumberOfOccurencesForLog("received = true"), 200, "All messages are not received from queue");
 
@@ -83,7 +82,7 @@ public class RabbitMQConsumerTestCase extends ESBIntegrationTest {
         }
 
         // Wait for the log to get updated
-        Thread.sleep(20000);
+        logReader.checkForLog("received = true", 40, 200);
 
         logReader.stop();
         Assert.assertEquals(logReader.getNumberOfOccurencesForLog("received = true"), 200, "All messages are not received from queue");

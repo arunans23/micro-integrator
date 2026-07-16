@@ -26,6 +26,7 @@ import org.wso2.esb.integration.common.utils.ESBIntegrationTest;
 import org.wso2.esb.integration.common.utils.ESBTestConstant;
 import org.wso2.esb.integration.common.utils.common.TestConfigurationProvider;
 
+import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.net.URL;
@@ -60,7 +61,13 @@ public class MultipartFormDataProxyTestCase extends ESBIntegrationTest {
     public void testMultipartFormDataResponseContainsExpectedNamespaces() throws Exception {
 
         deployProxyService(formDataProxyName, formDataProxyFilePath);
-        Thread.sleep(15000);
+        assertTrue(isArtifactDeployed(() -> {
+            try {
+                return checkProxyServiceExistence(formDataProxyName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30), "Proxy service " + formDataProxyName + " deployment failed");
         String payload = "<Risposta6001 xmlns=\"http://ws.apache.org/ns/synapse\" "
                 + "xmlns:ns2=\"http://sogei.it/ANPR/6001certificazione\">\n"
                 + "    <ns2:Risposta6001OK>\n"

@@ -29,7 +29,11 @@ import org.wso2.esb.integration.common.utils.clients.axis2client.AxisServiceClie
 import org.wso2.esb.integration.common.utils.clients.rabbitmqclient.RabbitMQConsumerClient;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
 
 public class RabbitMQProducerTestCase extends ESBIntegrationTest {
 
@@ -56,10 +60,15 @@ public class RabbitMQProducerTestCase extends ESBIntegrationTest {
             client.sendRobust(Utils.getStockQuoteRequest("RMQ"), getProxyServiceURLHttp("RabbitMQProducerProxy"),
                     "getQuote");
         }
-        //wait for the log to get updated
-        Thread.sleep(10000);
+        //wait for the messages to arrive at the queue
+        List<String> receivedMessages = new ArrayList<>();
+        await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(20, TimeUnit.SECONDS)
+                .until(() -> {
+                    receivedMessages.addAll(consumer.popAllMessages());
+                    return receivedMessages.size() >= 5;
+                });
 
-        messages = consumer.popAllMessages();
+        messages = receivedMessages;
         int afterMessagesCount = messages.size();
 
         if (messages.size() == 0) {
@@ -95,9 +104,15 @@ public class RabbitMQProducerTestCase extends ESBIntegrationTest {
         for (int i = 0; i < 5; i++) {
             client.sendRobust(payload, getProxyServiceURLHttp("RabbitMQProducerProxy"), "getQuote");
         }
-        Thread.sleep(10000);
+        //wait for the messages to arrive at the queue
+        List<String> receivedMessages = new ArrayList<>();
+        await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(20, TimeUnit.SECONDS)
+                .until(() -> {
+                    receivedMessages.addAll(consumer.popAllMessages());
+                    return receivedMessages.size() >= 5;
+                });
 
-        messages = consumer.popAllMessages();
+        messages = receivedMessages;
         int afterMessagesCount = messages.size();
 
         if (messages.size() == 0) {

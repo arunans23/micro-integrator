@@ -11,6 +11,7 @@ import org.wso2.esb.integration.common.utils.ESBIntegrationTest;
 import org.wso2.esb.integration.common.utils.servers.WireMonitorServer;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,7 +34,13 @@ public class ESBJAVA3290TestXWWWFormURLEncodedFormatter extends ESBIntegrationTe
         loadESBConfigurationFromClasspath(
                 File.separator + "artifacts" + File.separator + "ESB" + File.separator + "xwwwformurlencodedformatter"
                         + File.separator + synapseConfig);
-        Thread.sleep(5000);
+        isArtifactDeployed(() -> {
+            try {
+                return checkProxyServiceExistence("RestProxy");
+            } catch (IOException e) {
+                return false;
+            }
+        }, 10);
     }
 
     @SetEnvironment(executionEnvironments = { ExecutionEnvironment.STANDALONE })

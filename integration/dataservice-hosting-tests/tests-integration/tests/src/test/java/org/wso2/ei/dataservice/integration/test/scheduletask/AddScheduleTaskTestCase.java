@@ -38,7 +38,9 @@ import java.io.File;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import static org.awaitility.Awaitility.await;
 import static org.testng.Assert.assertTrue;
 
 public class AddScheduleTaskTestCase extends DSSIntegrationTest {
@@ -126,15 +128,12 @@ public class AddScheduleTaskTestCase extends DSSIntegrationTest {
     public void startScheduleTask() throws AxisFault {
         //if task count is 4
         for (int i = 0; i < 5; i++) {
+            double expectedSalary = empSalary + 10000;
+            await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(taskInterval * 3, TimeUnit.MILLISECONDS)
+                    .until(() -> getEmployeeSalary(getEmployeeById(employeeId)) == expectedSalary);
             double currentSalary = getEmployeeSalary(getEmployeeById(employeeId));
             log.info("current salary after task: " + currentSalary);
             Assert.assertEquals(currentSalary, (empSalary = empSalary + 10000), "Task not properly Executed");
-            try {
-                Thread.sleep(taskInterval);
-            } catch (InterruptedException e) {
-                log.error("InterruptedException :", e);
-                Assert.fail("InterruptedException :" + e);
-            }
         }
         log.info("ScheduleTask verifying Success");
     }

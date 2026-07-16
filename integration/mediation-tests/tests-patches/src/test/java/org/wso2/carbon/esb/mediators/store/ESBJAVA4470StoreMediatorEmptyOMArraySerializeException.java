@@ -40,7 +40,6 @@ public class ESBJAVA4470StoreMediatorEmptyOMArraySerializeException extends ESBI
         String url = getApiInvocationURL("SerializeProperty") + "/serializeOMArray";
         SimpleHttpClient httpClient = new SimpleHttpClient();
         httpClient.doGet(url, null);
-        Thread.sleep(10000);
 
         boolean logFound = carbonLogReader.checkForLog("Index: 0, Size: 0", DEFAULT_TIMEOUT) &&
                 carbonLogReader.checkForLog("ERROR", DEFAULT_TIMEOUT);

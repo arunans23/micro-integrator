@@ -23,13 +23,15 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import org.wso2.carbon.esb.rabbitmq.utils.RabbitMQServerInstance;
-import org.wso2.carbon.esb.rabbitmq.utils.RabbitMQTestUtils;
 import org.wso2.esb.integration.common.extensions.carbonserver.CarbonServerExtension;
 import org.wso2.esb.integration.common.utils.CarbonLogReader;
 import org.wso2.esb.integration.common.utils.ESBIntegrationTest;
 import org.wso2.esb.integration.common.utils.clients.rabbitmqclient.RabbitMQProducerClient;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
 
 /**
  * Includes a test case which deploys a simple rabbitmq inbound endpoint and tests for message consumption through
@@ -67,7 +69,7 @@ public class RabbitMQInboundTestCase extends ESBIntegrationTest {
             sender.sendMessage(message, "text/plain");
         }
 
-        RabbitMQTestUtils.waitForLogToGetUpdated();
+        logReader.checkForLog("received by inbound endpoint = true", 10, messageCount);
         logReader.stop();
         int messagesConsumed = logReader.getNumberOfOccurencesForLog("received by inbound endpoint = true");
         Assert.assertEquals(messagesConsumed, messageCount, "All messages are not received from queue");
@@ -87,8 +89,9 @@ public class RabbitMQInboundTestCase extends ESBIntegrationTest {
     public void testRabbitMQInboundEndpointDeploymentWithInvalidServerConfigs() throws Exception {
         logReader.start();
         CarbonServerExtension.restartServer();
-        Thread.sleep(20000);
-        RabbitMQTestUtils.waitForLogToGetUpdated();
+        await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(60, TimeUnit.SECONDS)
+                .until(isManagementApiAvailable());
+        logReader.checkForLog("Attempting to create connection to RabbitMQ Broker in 500ms", 15);
         Assert.assertTrue(logReader.checkForLog("Attempting to create connection to RabbitMQ Broker in 500ms",
                                                 5), "The connection retry delay is incorrect");
         Assert.assertEquals(

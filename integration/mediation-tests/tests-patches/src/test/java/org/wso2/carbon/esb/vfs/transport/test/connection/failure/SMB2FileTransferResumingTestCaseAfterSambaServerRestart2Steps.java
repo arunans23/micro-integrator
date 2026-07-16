@@ -171,7 +171,6 @@ public class SMB2FileTransferResumingTestCaseAfterSambaServerRestart2Steps exten
         } catch (Exception e) {
             log.error("Error while updating the Synapse config", e);
         }
-        Thread.sleep(30000);
         LOGGER.info("Synapse config updated");
 
         // Here we need to wait until polling to start hence only way is to wait and see. Since poll interval
@@ -204,9 +203,6 @@ public class SMB2FileTransferResumingTestCaseAfterSambaServerRestart2Steps exten
                 + "vfsTransport/3_files").getPath());
         File destinationFileDirectory = inputFolder;
         copyDirectory(sourceFileDirectory, destinationFileDirectory);
-
-        // Give time
-        Thread.sleep(60000);
 
         //check whether all 3 files are moved to "out" folder
         Awaitility.await().atMost(300, TimeUnit.SECONDS).until(checkWhetherPollingFinished(inputFolder));

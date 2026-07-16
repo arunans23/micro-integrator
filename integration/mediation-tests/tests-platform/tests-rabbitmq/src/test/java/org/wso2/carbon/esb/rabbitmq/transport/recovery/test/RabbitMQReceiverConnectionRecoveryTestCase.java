@@ -60,7 +60,7 @@ public class RabbitMQReceiverConnectionRecoveryTestCase extends ESBIntegrationTe
 
         //publish 10 messages to broker and wait for ESB to pick up the messages
         publishMessages(10);
-        Thread.sleep(30000);
+        logReader.checkForLog("received = true", 60, 10);
 
         //Stop rabbitmq server
         RabbitMQTestUtils.stopRabbitMq();
@@ -70,12 +70,12 @@ public class RabbitMQReceiverConnectionRecoveryTestCase extends ESBIntegrationTe
 
         //Restart the server
         RabbitMQTestUtils.startRabbitMq();
-        Thread.sleep(10000);
+        logReader.checkForLog("Successfully connected to RabbitMQ Broker", 20);
 
         //publish another 10 messages to broker and wait for ESB to pick up the messages
         sender = new RabbitMQProducerClient("localhost", 5672, "guest", "guest");
         publishMessages(10);
-        Thread.sleep(30000);
+        logReader.checkForLog("received = true", 60, 20);
         logReader.stop();
 
         Assert.assertEquals(logReader.getNumberOfOccurencesForLog("received = true"),
@@ -136,7 +136,7 @@ public class RabbitMQReceiverConnectionRecoveryTestCase extends ESBIntegrationTe
 
         //Restart rabbitmq server
         RabbitMQTestUtils.startRabbitMq();
-        Thread.sleep(20000);
+        logReader.checkForLog("Successfully connected to RabbitMQ Broker", 40);
 
         logReader.stop();
         String retryLog = "Attempting to create connection to RabbitMQ Broker in 10000 ms";
@@ -148,7 +148,7 @@ public class RabbitMQReceiverConnectionRecoveryTestCase extends ESBIntegrationTe
         //publish another 10 messages to broker and wait for ESB to pick up the messages
         sender = new RabbitMQProducerClient("localhost", 5672, "guest", "guest");
         publishMessages(10);
-        Thread.sleep(30000);
+        logReader.checkForLog("received = true", 60, 10);
         logReader.stop();
 
         Assert.assertEquals(logReader.getNumberOfOccurencesForLog("received = true"),

@@ -171,7 +171,6 @@ public class SMB2ConnectionGrowthTestCaseAfterSambaServerRestart extends ESBInte
         } catch (Exception e) {
             log.error("Error while updating the Synapse config", e);
         }
-        Thread.sleep(30000);
         LOGGER.info("Synapse config updated");
 
         // Here we need to wait until polling to start hence only way is to wait and see. Since poll interval

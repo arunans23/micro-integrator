@@ -74,7 +74,8 @@ public class Sample653TestCase extends ESBSampleIntegrationTest {
         senderIBM.start();
         senderMSTF.start();
 
-        Thread.sleep(15000);
+        senderIBM.join(60000);
+        senderMSTF.join(60000);
         Assert.assertTrue(senderMSTF.getResponseTime() >= senderIBM.getResponseTime(),
                 "Symbol with higher priority header took more time than Symbol with lower priority");
 

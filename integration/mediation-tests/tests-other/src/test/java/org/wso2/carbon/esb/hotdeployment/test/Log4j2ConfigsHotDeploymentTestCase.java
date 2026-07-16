@@ -30,6 +30,9 @@ import org.wso2.esb.integration.common.utils.common.TestConfigurationProvider;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.attribute.FileTime;
+import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
 
 /**
  * Test case to verify the hot deployment of log4j2 configs.
@@ -60,7 +63,11 @@ public class Log4j2ConfigsHotDeploymentTestCase extends ESBIntegrationTest {
         // Add the log4j2 properties file with enabled wire logs
         deployLog4j2ConfigWithWireLogs();
         // wait to deploy the log4j2 configs (scan interval is 5 seconds)
-        Thread.sleep(10000);
+        await().pollInterval(1, TimeUnit.SECONDS).atMost(30, TimeUnit.SECONDS).until(() -> {
+            carbonLogReader.clearLogs();
+            axis2Client.sendSimpleStockQuoteRequest(getProxyServiceURLHttp("StockQuoteProxy"), null, "WSO2");
+            return carbonLogReader.checkForLog("HTTP-Listener I/O dispatcher", 5);
+        });
 
         // test the proxy with enabled wire logs
         carbonLogReader.clearLogs();

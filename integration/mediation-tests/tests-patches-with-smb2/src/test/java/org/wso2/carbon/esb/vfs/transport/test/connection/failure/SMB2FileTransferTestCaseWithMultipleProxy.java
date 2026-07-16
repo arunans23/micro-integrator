@@ -177,7 +177,6 @@ public class SMB2FileTransferTestCaseWithMultipleProxy extends ESBIntegrationTes
             } catch (Exception e) {
                 log.error("Error while updating the Synapse config", e);
             }
-            Thread.sleep(30000);
             LOGGER.info("Synapse config updated");
         }
 

@@ -16,6 +16,7 @@
 
 package org.wso2.carbon.esb.passthru.transport.test;
 
+import org.awaitility.Awaitility;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -38,9 +39,9 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import static java.io.File.separator;
-import static org.testng.Assert.assertTrue;
 
 /**
  * Test case for HttpAccesslogs generation
@@ -77,34 +78,38 @@ public class HttpAccessLogTestCase extends ESBIntegrationTest {
     @SetEnvironment(executionEnvironments = { ExecutionEnvironment.ALL })
     @Test(groups = "wso2.esb")
     public void testHttpAccessLogGeneration() throws Exception {
-        BufferedReader bf = null;
-        boolean found = false;
-        String line;
-        try {
-            axis2Client.sendSimpleStockQuoteRequest(getProxyServiceURLHttp("HttpAccessLogsTestProxy"),
-                    getBackEndServiceUrl(ESBTestConstant.SIMPLE_STOCK_QUOTE_SERVICE), "WSO2");
-            File[] files = new File(httpLogDir).listFiles();
-            Assert.assertTrue(files.length > 0,
-                    "nhttp access logs were not written to the configured directory " + httpLogDir);
-            String fileName = null;
-            for (int i = 0; i < files.length; i++) {
-                fileName = files[i].getName();
-            }
-            Thread.sleep(30000);
-            bf = new BufferedReader(new FileReader(httpLogDir + File.separator + fileName));
+        axis2Client.sendSimpleStockQuoteRequest(getProxyServiceURLHttp("HttpAccessLogsTestProxy"),
+                getBackEndServiceUrl(ESBTestConstant.SIMPLE_STOCK_QUOTE_SERVICE), "WSO2");
+        File[] files = new File(httpLogDir).listFiles();
+        Assert.assertTrue(files.length > 0,
+                "nhttp access logs were not written to the configured directory " + httpLogDir);
+        String fileName = null;
+        for (int i = 0; i < files.length; i++) {
+            fileName = files[i].getName();
+        }
+        final String logFileName = fileName;
+        Awaitility.await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(60, TimeUnit.SECONDS)
+                .until(() -> logContainsProxyEntry(logFileName));
+    }
+
+    /**
+     * Checks whether the access log file contains an entry for the test proxy service.
+     *
+     * @param fileName access log file name
+     * @return true if a matching entry was found
+     */
+    private boolean logContainsProxyEntry(String fileName) {
+        try (BufferedReader bf = new BufferedReader(new FileReader(httpLogDir + File.separator + fileName))) {
+            String line;
             while ((line = bf.readLine()) != null) {
-                int indexfound = line.indexOf("HttpAccessLogsTestProxy");
-                if (indexfound > -1) {
-                    found = true;
-                    break;
+                if (line.indexOf("HttpAccessLogsTestProxy") > -1) {
+                    return true;
                 }
             }
-            assertTrue(found, "Access logs not generated for the proxy service.");
-        } finally {
-            if (bf != null) {
-                bf.close();
-            }
+        } catch (IOException e) {
+            return false;
         }
+        return false;
     }
 
     /*

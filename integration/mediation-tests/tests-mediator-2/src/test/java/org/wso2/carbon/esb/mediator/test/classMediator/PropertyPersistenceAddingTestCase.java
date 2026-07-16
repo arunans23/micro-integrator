@@ -32,8 +32,10 @@ import org.wso2.esb.integration.common.utils.Utils;
 import org.wso2.esb.integration.common.utils.common.ServerConfigurationManager;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
 import javax.xml.namespace.QName;
 
+import static org.awaitility.Awaitility.await;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 
@@ -98,8 +100,8 @@ public class PropertyPersistenceAddingTestCase extends ESBIntegrationTest {
                         "class" + File.separator + "class_property_persistence_five_properties.xml")));
         Utils.deploySynapseConfiguration(class_five_properties, "class_property_persistence_five_properties",
                 "proxy-services", true);
-        /* waiting for the new config file to be written to the disk */
-        Thread.sleep(10000);
+        await().ignoreExceptions().pollInterval(500, TimeUnit.MILLISECONDS).atMost(30, TimeUnit.SECONDS)
+                .until(() -> checkProxyServiceExistence("class_property_persistence_five_properties"));
 
         super.init();
 

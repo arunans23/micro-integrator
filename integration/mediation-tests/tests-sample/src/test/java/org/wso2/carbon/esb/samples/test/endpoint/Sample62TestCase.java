@@ -29,6 +29,10 @@ import org.wso2.carbon.automation.test.utils.tcpmon.client.TCPMonListener;
 import org.wso2.carbon.esb.samples.test.util.ESBSampleIntegrationTest;
 import org.wso2.esb.integration.common.utils.servers.axis2.SampleAxis2Server;
 
+import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
+
 /**
  * Sample 62: Routing a Message to a Dynamic List of Recipients and Aggregating Responses
  */
@@ -79,7 +83,9 @@ public class Sample62TestCase extends ESBSampleIntegrationTest {
         Assert.assertTrue(response.toString().contains("getSimpleQuoteResponse"), "GetSimpleQuoteResponse not found");
         Assert.assertTrue(response.toString().contains("WSO2 Company"), "WSO2 Company not found");
 
-        Thread.sleep(3000);
+        await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(10, TimeUnit.SECONDS)
+                .until(() -> isAxisServiceCalled(listener1) && isAxisServiceCalled(listener2)
+                        && isAxisServiceCalled(listener3));
 
         boolean is9001Called = isAxisServiceCalled(listener1);
         boolean is9002Called = isAxisServiceCalled(listener2);

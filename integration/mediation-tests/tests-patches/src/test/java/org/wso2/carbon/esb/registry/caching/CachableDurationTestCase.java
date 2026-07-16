@@ -4,6 +4,7 @@ import org.apache.axiom.om.util.AXIOMUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.awaitility.Awaitility;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -15,6 +16,7 @@ import org.wso2.esb.integration.common.utils.MicroRegistryManager;
 import org.wso2.esb.integration.common.utils.Utils;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ESBJAVA-3267
@@ -56,7 +58,8 @@ public class CachableDurationTestCase extends ESBIntegrationTest {
         Assert.assertTrue(Utils.checkForLog(carbonLogReader, OLD_VALUE, 10),
                           "Expected value : " + OLD_VALUE + " not found in logs.");
         updateResourcesInConfigRegistry();
-        Assert.assertEquals(NEW_VALUE, registryManager.getProperty(PATH, RESOURCE_PATH, NAME));
+        Awaitility.await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(10, TimeUnit.SECONDS)
+                .until(() -> NEW_VALUE.equals(registryManager.getProperty(PATH, RESOURCE_PATH, NAME)));
         clearLogsAndSendRequest();
         Assert.assertTrue(Utils.checkForLog(carbonLogReader, NEW_VALUE, 10),
                           "Expected value : " + NEW_VALUE + " not found in logs.");
@@ -88,7 +91,6 @@ public class CachableDurationTestCase extends ESBIntegrationTest {
                             + File.separator + "caching" + File.separator + "sample.txt";
             registryManager.addResource(PATH + RESOURCE_PATH, sampleFile);
             registryManager.updateProperty(PATH, RESOURCE_PATH, NAME, NEW_VALUE, true);
-            Thread.sleep(5000);
 
         } catch (Exception e) {
             logger.error("Error while updating the registry property", e);

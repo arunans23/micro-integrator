@@ -28,6 +28,10 @@ import org.wso2.carbon.automation.test.utils.tcpmon.client.TCPMonListener;
 import org.wso2.carbon.esb.samples.test.util.ESBSampleIntegrationTest;
 import org.wso2.esb.integration.common.utils.servers.axis2.SampleAxis2Server;
 
+import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
+
 /**
  * Sample 61: Routing a Message to a Dynamic List of Recipients
  */
@@ -73,7 +77,9 @@ public class Sample61TestCase extends ESBSampleIntegrationTest {
 
         String endpoint = getProxyServiceURLHttp("Sample61TestCaseProxy");
         axis2Client.sendPlaceOrderRequest(endpoint, null, "WSO2");
-        Thread.sleep(5000);
+        await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(10, TimeUnit.SECONDS)
+                .until(() -> isAxisServiceCalled(listener1) && isAxisServiceCalled(listener2)
+                        && isAxisServiceCalled(listener3));
 
         boolean is9001Called = isAxisServiceCalled(listener1);
         boolean is9002Called = isAxisServiceCalled(listener2);
@@ -88,7 +94,9 @@ public class Sample61TestCase extends ESBSampleIntegrationTest {
         listener3.clear();
 
         axis2Client.sendPlaceOrderRequest(endpoint, null, "WSO2");
-        Thread.sleep(5000);
+        await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(10, TimeUnit.SECONDS)
+                .until(() -> isAxisServiceCalled(listener1) && isAxisServiceCalled(listener2)
+                        && isAxisServiceCalled(listener3));
 
         is9001Called = isAxisServiceCalled(listener1);
         is9002Called = isAxisServiceCalled(listener2);

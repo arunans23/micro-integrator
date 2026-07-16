@@ -21,10 +21,12 @@ import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+import org.awaitility.Awaitility;
 import org.wso2.carbon.automation.test.utils.tcpmon.client.TCPMonListener;
 import org.wso2.esb.integration.common.utils.ESBIntegrationTest;
 
 import java.rmi.RemoteException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * https://wso2.org/jira/browse/ESBJAVA-3650
@@ -47,7 +49,8 @@ public class ESBJAVA3650_CustomHeaderPreserved_MessageProcessorOutMessage_TestCa
     public void testCustomHeaderPreserved_MessageProcessorOutMessage() throws RemoteException, InterruptedException {
 
         axis2Client.sendPlaceOrderRequest(getProxyServiceURLHttp(PROXY_SERVICE_NAME), null, "IBM");
-        Thread.sleep(5000);
+        Awaitility.await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(15, TimeUnit.SECONDS)
+                .until(() -> tcpMonListener.getConnectionData().containsKey(1));
 
         String inputText = tcpMonListener.getConnectionData().get(1).getInputText().toString();
         Assert.assertTrue(inputText.contains("customHeader: customHeadervalue"),

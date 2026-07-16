@@ -22,6 +22,7 @@ import junit.framework.Assert;
 import org.apache.axiom.om.OMElement;
 import org.apache.axiom.om.util.AXIOMUtil;
 import org.apache.commons.io.IOUtils;
+import org.awaitility.Awaitility;
 import org.apache.sshd.common.config.keys.KeyUtils;
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
 import org.apache.sshd.common.keyprovider.KeyPairProvider;
@@ -51,11 +52,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.PublicKey;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -98,7 +102,8 @@ public class ESBJAVA3470 extends ESBIntegrationTest {
 
         setupSftpFolders(carbonHome);
         setupSftpServer(carbonHome);
-        Thread.sleep(15000);
+        Awaitility.await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(30, TimeUnit.SECONDS)
+                .until(() -> isPortOpen("localhost", FTP_PORT));
         File newShFile = new File(
                 getESBResourceLocation() + File.separator + "vfs" + File.separator + SH_FILE_NAME);
         File oldShFile =
@@ -155,7 +160,11 @@ public class ESBJAVA3470 extends ESBIntegrationTest {
             log.error("Error while updating the Synapse config", e);
         }
         log.info("Synapse config updated");
-        Thread.sleep(30000);
+        Awaitility.await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(90, TimeUnit.SECONDS)
+                .until(() -> {
+                    File[] polledFiles = outputFolder.listFiles();
+                    return polledFiles != null && polledFiles.length > 0;
+                });
 
         //check whether the added message was moved to the original folder
         final File[] files = outputFolder.listFiles();
@@ -233,6 +242,22 @@ public class ESBJAVA3470 extends ESBIntegrationTest {
             sftpServerRunner.start();
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Checks whether a TCP port is accepting connections.
+     *
+     * @param host host to connect to
+     * @param port port to connect to
+     * @return true if a connection could be established
+     */
+    private static boolean isPortOpen(String host, int port) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), 1000);
+            return true;
+        } catch (IOException e) {
+            return false;
         }
     }
 

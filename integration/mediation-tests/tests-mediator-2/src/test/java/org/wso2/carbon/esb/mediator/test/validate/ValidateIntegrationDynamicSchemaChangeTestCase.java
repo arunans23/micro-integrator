@@ -27,6 +27,9 @@ import org.wso2.esb.integration.common.utils.ESBIntegrationTest;
 import org.wso2.esb.integration.common.utils.MicroRegistryManager;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
 
 public class ValidateIntegrationDynamicSchemaChangeTestCase extends ESBIntegrationTest {
 
@@ -70,8 +73,15 @@ public class ValidateIntegrationDynamicSchemaChangeTestCase extends ESBIntegrati
         registryManager.updateResource("conf:/validate/schema1", newSchemaPath, true);
 
         //Work - Schema 2
-        /** Time to set up schema - strictly necessary */
-        Thread.sleep(30000);
+        await().pollInterval(2, TimeUnit.SECONDS).atMost(60, TimeUnit.SECONDS).until(() -> {
+            try {
+                OMElement pollResponse = axis2Client.sendSimpleStockQuoteRequest(
+                        getProxyServiceURLHttp("validateMediatorDynamicSchemaChangeTestProxy"), null, "WSO2");
+                return pollResponse.toString().contains("GetQuoteResponse");
+            } catch (AxisFault e) {
+                return false;
+            }
+        });
 
         OMElement response = axis2Client
                 .sendSimpleStockQuoteRequest(getProxyServiceURLHttp("validateMediatorDynamicSchemaChangeTestProxy"),

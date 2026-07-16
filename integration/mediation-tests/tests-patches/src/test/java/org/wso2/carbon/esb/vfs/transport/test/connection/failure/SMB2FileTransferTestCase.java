@@ -168,7 +168,6 @@ public class SMB2FileTransferTestCase extends ESBIntegrationTest {
         } catch (Exception e) {
             log.error("Error while updating the Synapse config", e);
         }
-        Thread.sleep(30000);
         LOGGER.info("Synapse config updated");
         // Here we can't know whether the proxy polling happened or not, hence only way is to wait and see. Since poll interval is 1,
         // this waiting period should suffice. But it may include the time it take to deploy the service as well.

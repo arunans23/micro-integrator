@@ -47,7 +47,7 @@ public class RestPeopleTestCase extends ESBIntegrationTest {
     public void addPeople() throws Exception {
 
         tomcatServerManager.startServer();
-        Thread.sleep(50000);
+        isArtifactDeployed(() -> tomcatServerManager.isRunning(), 100);
         //String text = new Scanner( new File("poem.txt"), "UTF-8" ).useDelimiter("\\A").next();
         //OMElement putProxyService = AXIOMUtil.stringToOM(new Scanner(new File(getESBResourceLocation() + File.separator + "jaxrs" + File.separator + "putpeopleproxy.xml"), "UTF-8").useDelimiter("\\A").next());
         // addProxyService(putProxyService);

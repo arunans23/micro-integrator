@@ -49,7 +49,7 @@ public class SoapToRestPeopleSampleTestCase extends ESBIntegrationTest {
     @Test(groups = { "wso2.esb" }, priority = 1, description = "Tests POST method with application/jason content type")
     public void addPeople() throws Exception {
 
-        Thread.sleep(5000);
+        isArtifactDeployed(() -> tomcatServerManager.isRunning(), 10);
         if (tomcatServerManager.isRunning()) {
             AxisServiceClient axisServiceClient = new AxisServiceClient();
             OMElement putRequest = AXIOMUtil.stringToOM(

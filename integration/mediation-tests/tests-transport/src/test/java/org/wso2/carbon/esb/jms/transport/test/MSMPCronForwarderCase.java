@@ -23,12 +23,16 @@ import org.awaitility.core.ConditionFactory;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+import org.wso2.carbon.automation.extensions.servers.jmsserver.controller.config.JMSBrokerConfigurationProvider;
 import org.wso2.carbon.automation.test.utils.http.client.HttpRequestUtil;
 import org.wso2.carbon.automation.test.utils.http.client.HttpResponse;
 import org.wso2.esb.integration.common.extensions.jmsserver.ActiveMQServerExtension;
 import org.wso2.esb.integration.common.utils.CarbonLogReader;
 import org.wso2.esb.integration.common.utils.ESBIntegrationTest;
 
+import java.io.IOException;
+import java.net.Socket;
+import java.net.URI;
 import java.net.URL;
 import java.time.Duration;
 import java.util.HashMap;
@@ -54,7 +58,10 @@ public class MSMPCronForwarderCase extends ESBIntegrationTest {
         if (!ActiveMQServerExtension.isMQServerStarted()) {
             log.info("ActiveMQ Server is not started. Hence starting the MQServer");
             ActiveMQServerExtension.startMQServer();
-            Thread.sleep(60000);
+            Awaitility.await()
+                    .pollInterval(org.awaitility.Duration.FIVE_HUNDRED_MILLISECONDS)
+                    .atMost(org.awaitility.Duration.TWO_MINUTES)
+                    .until(isBrokerConnectable());
             Awaitility.await()
                     .pollInterval(org.awaitility.Duration.ONE_MINUTE)
                     .atMost(org.awaitility.Duration.FIVE_MINUTES)
@@ -106,6 +113,20 @@ public class MSMPCronForwarderCase extends ESBIntegrationTest {
         return new Callable<Boolean>() {
             @Override public Boolean call() throws Exception {
                 return carbonLogReader.checkForLog("Jack", DEFAULT_TIMEOUT, NUMBER_OF_MESSAGES);
+            }
+        };
+    }
+
+    private Callable<Boolean> isBrokerConnectable() {
+        return new Callable<Boolean>() {
+            @Override public Boolean call() {
+                URI uri = URI.create(
+                        JMSBrokerConfigurationProvider.getInstance().getBrokerConfiguration().getProviderURL());
+                try (Socket socket = new Socket(uri.getHost(), uri.getPort())) {
+                    return true;
+                } catch (IOException e) {
+                    return false;
+                }
             }
         };
     }

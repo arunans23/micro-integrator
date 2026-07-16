@@ -68,7 +68,8 @@ public class DeactivatedCappMPBehaviourOnRestartTestCase extends ESBIntegrationT
                 "placeOrder");
 
         // Wait till the MP deactivates successfully. MP will try sending the message 4 times before getting deactivated.
-        Thread.sleep(15000);
+        carbonLogReader.checkForLog(
+                "Successfully deactivated the message processor [CappMPServerRestartTestProcessor]", 30);
 
         axis2Server.start();
 

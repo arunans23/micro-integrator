@@ -48,7 +48,6 @@ public class Sample381TestCase extends ESBSampleIntegrationTest {
         for (int i = 0; i < numberOfMsgToExpect; i++) {
             mddProducerMSTF.sendMessage("MSTF", "dynamicQueues/JMSBinaryProxy");
         }
-        Thread.sleep(5000);
         Assert.assertTrue(carbonLogReader.checkForLog("MSTF", DEFAULT_TIMEOUT), "Request log not found");
         carbonLogReader.stop();
     }

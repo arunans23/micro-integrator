@@ -37,8 +37,10 @@ import org.wso2.ei.dataservices.integration.common.clients.DataServiceAdminClien
 import java.io.File;
 import java.net.MalformedURLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
 import javax.management.MBeanInfo;
@@ -50,6 +52,8 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.xml.stream.XMLStreamException;
+
+import static org.awaitility.Awaitility.await;
 
 //Requires kernel 4.4.6
 public class CARBON15928JMXDisablingTest extends DSSIntegrationTest {
@@ -110,12 +114,10 @@ public class CARBON15928JMXDisablingTest extends DSSIntegrationTest {
             for (String ds : list) {
                 if (dataSourceName.equalsIgnoreCase(ds)) {
                     dataSourceAdminService.deleteDataSource(ds);
-                    try {
-                        Thread.sleep(2000);
-                    } catch (InterruptedException e) {
-                        log.error("InterruptedException : " + e);
-                        Assert.fail("InterruptedException : " + e);
-                    }
+                    await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(10, TimeUnit.SECONDS).until(() -> {
+                        String[] dataSources = dataServiceAdminService.getCarbonDataSources();
+                        return dataSources == null || !Arrays.asList(dataSources).contains(ds);
+                    });
                 }
             }
         }

@@ -17,8 +17,11 @@
 
 package org.wso2.carbon.esb.rabbitmq.utils;
 
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.awaitility.Awaitility;
 import org.wso2.carbon.automation.engine.context.AutomationContext;
 import org.wso2.esb.integration.common.utils.exception.RabbitMQTransportException;
 import org.wso2.esb.integration.common.utils.servers.RabbitMQServer;
@@ -150,9 +153,29 @@ public class RabbitMQTestUtils {
 
     public static void startRabbitMq() throws IOException, InterruptedException {
         executeDockerCommand("docker start " + RABBITMQ_CONTAINER);
-        int waitTime = 180;
-        log.info("Waiting for " + waitTime + " seconds for container startup.");
-        TimeUnit.SECONDS.sleep(waitTime); // waiting for the startup completion
+        log.info("Waiting for RabbitMQ broker to accept AMQP connections.");
+        Awaitility.await().pollInterval(2, TimeUnit.SECONDS).atMost(360, TimeUnit.SECONDS)
+                .until(RabbitMQTestUtils::isBrokerAcceptingConnections);
+    }
+
+    /**
+     * Checks whether the RabbitMQ broker is up and accepting AMQP connections by opening and
+     * immediately closing a connection.
+     *
+     * @return true if a connection could be established, false otherwise
+     */
+    private static boolean isBrokerAcceptingConnections() {
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        connectionFactory.setHost("localhost");
+        connectionFactory.setPort(5672);
+        connectionFactory.setUsername("guest");
+        connectionFactory.setPassword("guest");
+        connectionFactory.setConnectionTimeout(3000);
+        try (Connection connection = connectionFactory.newConnection()) {
+            return connection.isOpen();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static void executeDockerCommand(String command) throws IOException, InterruptedException {

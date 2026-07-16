@@ -45,6 +45,9 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
 
 public class Sample657TestCase extends ESBSampleIntegrationTest {
 
@@ -151,7 +154,17 @@ public class Sample657TestCase extends ESBSampleIntegrationTest {
 
         client.sendRobust(Utils.getStockQuoteRequest("IBM"), getMainSequenceURL(), "getQuote");
 
-        Thread.sleep(5000);
+        await().pollInterval(500, TimeUnit.MILLISECONDS).atMost(10, TimeUnit.SECONDS).until(() -> {
+            try (Statement stmt = mysqlConnection.createStatement();
+                    ResultSet rs = stmt.executeQuery("SELECT * FROM " + datasource2 + ".company")) {
+                while (rs.next()) {
+                    if (rs.getString(1).contains("WSO2")) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
 
         Statement statement = mysqlConnection.createStatement();
 

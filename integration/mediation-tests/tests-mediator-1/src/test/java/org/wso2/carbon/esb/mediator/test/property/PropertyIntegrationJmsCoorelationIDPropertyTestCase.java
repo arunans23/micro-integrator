@@ -77,8 +77,6 @@ public class PropertyIntegrationJmsCoorelationIDPropertyTestCase extends ESBInte
         client.sendRobust(Utils.getStockQuoteRequest("JMS"),
                 getProxyServiceURLHttp("propertyJmsCorrelationIdTestProxy"), "getQuote");
 
-        Thread.sleep(5000);
-
         //Adding JNDI properties
         Properties props = new Properties();
         props.setProperty(Context.INITIAL_CONTEXT_FACTORY, "org.apache.activemq.jndi.ActiveMQInitialContextFactory");
@@ -99,7 +97,7 @@ public class PropertyIntegrationJmsCoorelationIDPropertyTestCase extends ESBInte
         Destination destination = (Destination) ctx.lookup(queueName);
 
         consumer = session.createConsumer(destination);
-        Message message = consumer.receive(5000);
+        Message message = consumer.receive(15000);
 
         assertNotNull(message, "Consumed message is Null");
         assertEquals(message.getJMSCorrelationID(), ("1234"), "Correlation ID mismatch");

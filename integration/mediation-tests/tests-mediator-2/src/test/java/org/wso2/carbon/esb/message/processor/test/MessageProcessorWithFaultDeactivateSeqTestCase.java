@@ -56,7 +56,8 @@ public class MessageProcessorWithFaultDeactivateSeqTestCase extends ESBIntegrati
     public void testMPGettingDeactivatedIfDeactivateSeqFails() throws Exception {
         SimpleHttpClient simpleHttpClient = new SimpleHttpClient();
         simpleHttpClient.doGet(proxyURL, null);
-        Thread.sleep(10000);
+        Awaitility.await().ignoreExceptions().pollInterval(500, TimeUnit.MILLISECONDS)
+                .atMost(30, TimeUnit.SECONDS).until(this::isMessageProcessorInactive);
         checkMessageProcessorState();
     }
 
@@ -66,20 +67,24 @@ public class MessageProcessorWithFaultDeactivateSeqTestCase extends ESBIntegrati
                     until(isManagementApiAvailable());
         }
         try {
-            SimpleHttpClient client = new SimpleHttpClient();
-            Map<String, String> headers = new HashMap<>();
-            headers.put("Accept", "application/json");
-
-            String endpoint = "https://" + hostName + ":" + (DEFAULT_INTERNAL_API_HTTPS_PORT + portOffset)
-                    + "/management/message-processors?name=" + PROCESSOR_NAME;
-
-            HttpResponse response = client.doGet(endpoint, headers);
-            Assert.assertTrue(client.getResponsePayload(response).contains("\"status\":\"inactive\""),
+            Assert.assertTrue(isMessageProcessorInactive(),
                     "Message processor should be inactive when exception is thrown inside deactivate sequence.");
         } catch (IOException e) {
             throw new SynapseException("Error retrieving details of the message processor " + PROCESSOR_NAME
                     + " using Management API", e);
         }
+    }
+
+    private boolean isMessageProcessorInactive() throws IOException {
+        SimpleHttpClient client = new SimpleHttpClient();
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Accept", "application/json");
+
+        String endpoint = "https://" + hostName + ":" + (DEFAULT_INTERNAL_API_HTTPS_PORT + portOffset)
+                + "/management/message-processors?name=" + PROCESSOR_NAME;
+
+        HttpResponse response = client.doGet(endpoint, headers);
+        return client.getResponsePayload(response).contains("\"status\":\"inactive\"");
     }
 
     @AfterClass(alwaysRun = true)
