@@ -46,7 +46,6 @@ public class MetricHandler extends AbstractExtendedSynapseHandler {
     private static Log log = LogFactory.getLog(MetricHandler.class);
     private static final String DELIMITER = "/";
     private static final String EMPTY = "";
-    private static final String DEFAULT_SERVICE_PATH = "services";
 
     private MetricReporter metricReporterInstance;
     private int serviceInvokePort;
@@ -83,11 +82,14 @@ public class MetricHandler extends AbstractExtendedSynapseHandler {
             incrementProxyCount(proxyName);
             startTimers(synCtx, proxyName, SynapseConstants.PROXY_SERVICE_TYPE, null);
         } else if (null != synCtx.getProperty(SynapseConstants.IS_INBOUND)) {
-            String inboundEndpointName = synCtx.getProperty(SynapseConstants.INBOUND_ENDPOINT_NAME).toString();
-
-            incrementInboundEndPointCount(inboundEndpointName);
-            startTimers(synCtx, inboundEndpointName, MetricConstants.INBOUND_ENDPOINT,
-                    null);
+            // Some flows (eg:- gRPC inbound, WebSocket client relay) mark the message as inbound without
+            // setting the inbound endpoint name, so they cannot be attributed to an inbound endpoint.
+            Object inboundEndpointName = synCtx.getProperty(SynapseConstants.INBOUND_ENDPOINT_NAME);
+            if (null != inboundEndpointName) {
+                incrementInboundEndPointCount(inboundEndpointName.toString());
+                startTimers(synCtx, inboundEndpointName.toString(), MetricConstants.INBOUND_ENDPOINT,
+                        null);
+            }
         } else {
             serviceInvokePort = getServiceInvokePort(synCtx);
 
@@ -157,25 +159,28 @@ public class MetricHandler extends AbstractExtendedSynapseHandler {
                     synCtx.getProperty(SynapseConstants.IS_INBOUND).toString().equals("true")) {
                 // Polling and event-based inbound endpoints (JMS, File, Kafka, etc.) do not set TransportInURL,
                 // so inbound errors must be identified before the URL based checks below.
-                String inboundEndpointName = synCtx.getProperty(SynapseConstants.INBOUND_ENDPOINT_NAME).
-                        toString();
-                incrementInboundEndpointErrorCount(inboundEndpointName);
-                stopTimers(synCtx.getProperty
-                        (MetricConstants.INBOUND_ENDPOINT_LATENCY_TIMER), synCtx);
-            } else if (null != axis2MessageContext.getProperty(MetricConstants.TRANSPORT_IN_URL) &&
-                    !isServicePath(axis2MessageContext.getProperty(MetricConstants.TRANSPORT_IN_URL).toString(),
-                            axis2MessageContext)) {
+                Object inboundEndpointName = synCtx.getProperty(SynapseConstants.INBOUND_ENDPOINT_NAME);
+                if (null != inboundEndpointName) {
+                    incrementInboundEndpointErrorCount(inboundEndpointName.toString());
+                    stopTimers(synCtx.getProperty
+                            (MetricConstants.INBOUND_ENDPOINT_LATENCY_TIMER), synCtx);
+                }
+            } else if (null != axis2MessageContext.getProperty(MetricConstants.TRANSPORT_IN_URL)) {
                 serviceInvokePort = getServiceInvokePort(synCtx);
 
                 if (null != synCtx.getProperty(RESTConstants.SYNAPSE_REST_API) &&
                         (serviceInvokePort != internalHttpApiPort)) {
                     String context = axis2MessageContext.getProperty(MetricConstants.TRANSPORT_IN_URL).
                             toString();
-                    String apiInvocationUrl = axis2MessageContext.getProperty(MetricConstants.SERVICE_PREFIX).
-                            toString() + context.replaceFirst(DELIMITER, EMPTY);
+                    // Count only when the URL resolves to a deployed API. This excludes Axis2 services
+                    // (eg:- /services/MyDataService) without depending on the service path name.
                     String apiName = getApiName(context, synCtx);
-                    incrementApiErrorCount(apiName, apiInvocationUrl);
-                    stopTimers(synCtx.getProperty(MetricConstants.API_LATENCY_TIMER), synCtx);
+                    if (null != apiName) {
+                        String apiInvocationUrl = axis2MessageContext.getProperty(MetricConstants.SERVICE_PREFIX).
+                                toString() + context.replaceFirst(DELIMITER, EMPTY);
+                        incrementApiErrorCount(apiName, apiInvocationUrl);
+                        stopTimers(synCtx.getProperty(MetricConstants.API_LATENCY_TIMER), synCtx);
+                    }
                 }
             }
         }
@@ -392,31 +397,6 @@ public class MetricHandler extends AbstractExtendedSynapseHandler {
             invokePort = Integer.parseInt(servicePort);
         }
         return invokePort;
-    }
-
-    /**
-     * Check whether the request URL points to an Axis2 service (eg:- /services/StockQuoteProxy). A plain substring
-     * match on "services" is not used, since API contexts such as /order-services would be wrongly excluded.
-     *
-     * @param transportInUrl      The TransportInURL of the request (path, or an absolute URL)
-     * @param axis2MessageContext The Axis2 message context
-     * @return true if the URL is under the Axis2 service path
-     */
-    private boolean isServicePath(String transportInUrl, org.apache.axis2.context.MessageContext axis2MessageContext) {
-        String servicePath = DEFAULT_SERVICE_PATH;
-        if (null != axis2MessageContext.getConfigurationContext() &&
-                StringUtils.isNotBlank(axis2MessageContext.getConfigurationContext().getServicePath())) {
-            servicePath = axis2MessageContext.getConfigurationContext().getServicePath();
-        }
-        String path = transportInUrl;
-        int schemeEnd = path.indexOf("://");
-        if (schemeEnd != -1) {
-            int pathStart = path.indexOf(DELIMITER, schemeEnd + 3);
-            path = pathStart == -1 ? DELIMITER : path.substring(pathStart);
-        }
-        String servicePrefix = DELIMITER + StringUtils.strip(servicePath, DELIMITER);
-        return path.equals(servicePrefix) || path.startsWith(servicePrefix + DELIMITER) ||
-                path.startsWith(servicePrefix + "?");
     }
 
     /**

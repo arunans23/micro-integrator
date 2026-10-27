@@ -17,6 +17,7 @@
  */
 package org.wso2.micro.integrator.observability.metric.handler;
 
+import org.apache.axis2.context.ConfigurationContext;
 import org.apache.synapse.SynapseConstants;
 import org.apache.synapse.api.API;
 import org.apache.synapse.config.SynapseConfiguration;
@@ -30,6 +31,7 @@ import org.wso2.micro.integrator.observability.util.MetricConstants;
 import java.lang.reflect.Field;
 import java.util.Collections;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -123,7 +125,28 @@ public class MetricHandlerErrorCountTest {
     }
 
     @Test
+    public void testApiErrorIsCountedWhenContextOverlapsServicePath() throws Exception {
+        // An API context can share its prefix with a custom Axis2 service path (eg:- servicePath = "api").
+        API api = new API("OrdersAPI", "/api/orders");
+        when(synapseConfiguration.getAPIs()).thenReturn(Collections.singletonList(api));
+        Axis2MessageContext synCtx = createMessageContext();
+        synCtx.setProperty(RESTConstants.SYNAPSE_REST_API, api.getName());
+        setTransportInUrl(synCtx, "/api/orders");
+        ConfigurationContext configurationContext = mock(ConfigurationContext.class);
+        when(configurationContext.getServicePath()).thenReturn("api");
+        synCtx.getAxis2MessageContext().setConfigurationContext(configurationContext);
+
+        metricHandler.handleError(synCtx);
+
+        verify(metricReporter, times(1)).incrementCount(eq(MetricConstants.API_REQUEST_COUNT_ERROR_TOTAL),
+                aryEq(new String[]{"OrdersAPI", SynapseConstants.FAIL_SAFE_MODE_API,
+                        HTTP_SERVICE_PREFIX + "api/orders"}));
+    }
+
+    @Test
     public void testErrorUnderServicePathIsNotCountedAsApiError() throws Exception {
+        API api = new API("OrdersAPI", "/orders");
+        when(synapseConfiguration.getAPIs()).thenReturn(Collections.singletonList(api));
         Axis2MessageContext synCtx = createMessageContext();
         synCtx.setProperty(RESTConstants.SYNAPSE_REST_API, "SomeAPI");
         setTransportInUrl(synCtx, "/services/OrderDataService");
@@ -131,6 +154,20 @@ public class MetricHandlerErrorCountTest {
         metricHandler.handleError(synCtx);
 
         verifyNoApiOrProxyErrorCounted();
+    }
+
+    @Test
+    public void testInboundWithoutEndpointNameIsNotCounted() throws Exception {
+        // gRPC inbound and the WebSocket client relay set isInbound without the inbound endpoint name.
+        Axis2MessageContext synCtx = createMessageContext();
+        synCtx.setProperty(SynapseConstants.IS_INBOUND, true);
+
+        metricHandler.handleRequestInFlow(synCtx);
+        metricHandler.handleError(synCtx);
+
+        verify(metricReporter, never()).incrementCount(any(), any());
+        verify(metricReporter, never()).getTimer(any(), any());
+        assertEquals(true, synCtx.getProperty(SynapseConstants.IS_ERROR_COUNT_ALREADY_PROCESSED));
     }
 
     @Test
